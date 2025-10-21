@@ -1,0 +1,6 @@
+PACKAGE_NAME = 'transpilex'
+PACKAGE_DESCRIPTION = 'Transpile HTML into given frameworks'
+PACKAGE_VERSION = '1.0.0'
+PACKAGE_AUTHOR = 'Anant Navadiya'
+PACKAGE_AUTHOR_EMAIL = 'contact@anantnavadiya.com'
+PACKAGE_LICENSE = 'MIT'
