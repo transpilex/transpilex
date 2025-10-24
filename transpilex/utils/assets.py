@@ -1,7 +1,9 @@
 import shutil
+import re
 from pathlib import Path
 from typing import Union, List
 
+from transpilex.config.base import PUBLIC_ONLY_ASSETS
 from transpilex.utils.logs import Log
 
 
@@ -88,9 +90,9 @@ def copy_assets(
 
 
 def copy_public_only_assets(
-    source_assets_path: Union[Path, List[Union[str, Path]]],
-    destination_path: Path,
-    candidates: List[str] | None = None
+        source_assets_path: Union[Path, List[Union[str, Path]]],
+        destination_path: Path,
+        candidates: List[str] | None = None
 ) -> List[str]:
     """
     Copies only selected public asset folders (like images, media, json, etc.)
@@ -100,14 +102,14 @@ def copy_public_only_assets(
         source_assets_path (Path | list[str | Path]): One or more asset directories.
         destination_path (Path): Target directory for copied assets.
         candidates (list[str] | None): List of folder names to copy.
-                                       Defaults to ["images", "img", "media", "data", "json"].
+                                       Defaults to PUBLIC_ONLY_ASSETS.
 
     Returns:
         list[str]: Names of successfully copied folders (useful for exclude list in copy_assets).
     """
 
     if candidates is None:
-        candidates = ["images", "img", "media", "data", "json"]
+        candidates = PUBLIC_ONLY_ASSETS
 
     destination_path = Path(destination_path).resolve()
     destination_path.mkdir(parents=True, exist_ok=True)
@@ -142,3 +144,26 @@ def copy_public_only_assets(
         Log.copied(f"public assets: {', '.join(sorted(copied))}")
 
     return sorted(list(copied))
+
+
+def clean_relative_asset_paths(content: str) -> str:
+    """
+    Cleans up <script src="..."> and <link href="..."> paths:
+    - Removes leading 'assets/', '../assets/', '..assets/' etc. from local paths
+    - Does NOT modify URLs containing 'assets/' in the middle (like external CDNs)
+    """
+
+    def clean_match(match):
+        attr = match.group(1)
+        path = match.group(2).strip()
+
+        # Skip if it contains :// or starts like cdn.domain.com
+        if re.match(r'^(?:[a-z]+:)?//|^[\w.-]+\.\w+/', path):
+            return match.group(0)
+
+        # Clean if path starts with relative asset path
+        cleaned = re.sub(r'^(\.{0,2}/)*assets', '', path)
+        return f'{attr}="{cleaned}"'
+
+    # Clean both href="..." and src="..."
+    return re.sub(r'\b(src|href)\s*=\s*["\']([^"\']+)["\']', clean_match, content)

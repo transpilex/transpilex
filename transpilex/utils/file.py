@@ -173,3 +173,56 @@ def move_files(source_folder: Path, destination_folder: Path, ignore_list: list[
 
     if not any(source_folder.iterdir()):
         source_folder.rmdir()
+
+
+def remove_item(path_to_remove: Path):
+    """
+    Removes a file or an entire directory (recursively).
+
+    Args:
+        path_to_remove: The Path object to the file or folder.
+    """
+    try:
+        if not path_to_remove.exists():
+            return
+
+        if path_to_remove.is_dir():
+            shutil.rmtree(path_to_remove)
+        elif path_to_remove.is_file():
+            path_to_remove.unlink()
+        else:
+            Log.warning(f"Path is not a file or directory: {path_to_remove}")
+
+    except OSError as e:
+        Log.error(f"Failed to remove {path_to_remove}: {e}")
+    except Exception as e:
+        Log.error(f"An unexpected error occurred while removing {path_to_remove}: {e}")
+
+
+def empty_folder_contents(folder_path: Path, skip=None):
+    """
+    Deletes all contents inside the given folder (files and subfolders),
+    but keeps the folder itself.
+
+    :param folder_path: The folder to empty.
+    :param skip: Optional list of file or directory names to skip from deletion.
+    """
+    folder_path = Path(folder_path)
+    skip = set(skip or [])
+
+    if not folder_path.exists() or not folder_path.is_dir():
+        return
+
+    for item in folder_path.iterdir():
+        if item.name in skip:
+            continue
+        try:
+            if item.is_file() or item.is_symlink():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
+        except Exception as e:
+            Log.error(f"Error removing {item}: {e}")
+
+    if not any(folder_path.iterdir()):
+        folder_path.rmdir()

@@ -7,6 +7,9 @@ venv
 transpilex.egg-info
 assets
 html
+html-1
+html-2
+html-4
 php
 laravel
 cakephp

@@ -7,7 +7,8 @@ from transpilex.config.base import (
     SUPPORTED_FRAMEWORKS, VITE_ONLY, SUPPORTED_PIPELINES,
     SOURCE_PATH, ASSETS_PATH, DESTINATION_PATH,
     DEFAULT_PIPELINE, PARTIALS_PATH, UI_LIBRARIES, DEFAULT_UI_LIBRARY, PHP_VITE_ASSETS_PATH, PHP_ASSETS_PATH,
-    PHP_VITE_PARTIALS_PATH, PHP_PARTIALS_PATH, PHP_VARIABLE_REPLACEMENT, PHP_EXTENSION, PAGES_PATH
+    PHP_VITE_PARTIALS_PATH, PHP_PARTIALS_PATH, PHP_VARIABLE_REPLACEMENT, PHP_EXTENSION, PAGES_PATH, LARAVEL_ASSETS_PATH,
+    LARAVEL_PARTIALS_PATH, LARAVEL_VARIABLE_REPLACEMENT, LARAVEL_EXTENSION, GULP_PLUGINS_FOLDER
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -155,6 +156,12 @@ def ask_basic_project_info():
 
         variable_replacement = PHP_VARIABLE_REPLACEMENT
         file_extension = PHP_EXTENSION
+
+    elif framework == "laravel":
+        project_assets_path = LARAVEL_ASSETS_PATH
+        project_partials_path = LARAVEL_PARTIALS_PATH
+        variable_replacement = LARAVEL_VARIABLE_REPLACEMENT
+        file_extension = LARAVEL_EXTENSION
     else:
         project_assets_path = None
         project_partials_path = None
@@ -167,7 +174,7 @@ def ask_basic_project_info():
         "ui_library": ui_library.lower(),
         "frontend_pipeline": frontend_pipeline,
         "src_path": src_path,
-        "pages_path": pages_path,
+        "pages_path": Path(pages_path),
         "asset_paths": Path(asset_paths) if len(asset_paths) > 0 else None,
         "partials_path": Path(partials_path) if len(partials_path) > 0 else None,
         "dest_path": Path(new_dest_path),
@@ -180,7 +187,7 @@ def ask_basic_project_info():
         "gulp_config": GulpConfig(
             src_path=project_assets_path,
             dest_path=project_assets_path,
-            plugins_folder="plugins"
+            plugins_folder=GULP_PLUGINS_FOLDER
         )
     }
 

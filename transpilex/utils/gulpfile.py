@@ -24,6 +24,9 @@ def add_gulpfile(config: ProjectConfig):
 
     tailwind = config.ui_library == "tailwind"
 
+    imports = "const tailwindcss = require('@tailwindcss/postcss');" if tailwind else \
+        "const gulpSass = require('gulp-sass');\nconst dartSass = require('sass');\nconst tildeImporter = require('node-sass-tilde-importer');\nconst rtlcss = require('gulp-rtlcss');"
+
     plugins_import = 'const pluginFile = require("./plugins.config"); // Import the plugins list' if plugins_config else f"""
 const pluginFile = {{
     vendorsCSS: [],
@@ -143,35 +146,51 @@ const plugins = function () {{
 
     plugins_task = "plugins," if plugins_config else "vendorStyles, vendorScripts, plugins,"
 
-    gulpfile_template = f"""
-// Gulp and package
-const {{src, dest, parallel, series, watch}} = require('gulp');
+    functions = f"""
+const processCss = [
+    tailwindcss(),
+    autoprefixer(), // adds vendor prefixes
+    pixrem(), // add fallbacks for rem units
+];
 
-// Plugins
-const autoprefixer = require('autoprefixer');
-const concat = require('gulp-concat');
-const tildeImporter = require('node-sass-tilde-importer');
-const cssnano = require('cssnano');
-const pixrem = require('pixrem');
-const plumber = require('gulp-plumber');
-const postcss = require('gulp-postcss');
-const rename = require('gulp-rename');
-const gulpSass = require('gulp-sass');
-const dartSass = require('sass');
-const gulUglifyES = require('gulp-uglify-es');
-const rtlcss = require('gulp-rtlcss');
-const npmdist = require('gulp-npm-dist');
+const minifyCss = [
+    cssnano({{preset: 'default'}}), // minify result
+];
 
-const sass = gulpSass(dartSass);
-const uglify = gulUglifyES.default;
+const styles = function () {{
+    const out = paths.baseDistAssets + "/css/";
 
-{plugins_import}
-
-const paths = {{
-    baseSrcAssets: "{config.gulp_config.src_path}",   // source assets directory
-    baseDistAssets: "{config.gulp_config.dest_path}",  // build assets directory
+    return src(paths.baseSrcAssets + "/css/style.css")
+        .pipe(plumber()) // Checks for errors
+        .pipe(postcss(processCss))
+        .pipe(dest(out))
+        .pipe(rename({{suffix: '.min'}}))
+        .pipe(postcss(minifyCss)) // Minifies the result
+        .pipe(dest(out));
 }};
 
+{plugins_fn}
+
+const watchFiles = function () {{
+    watch(paths.baseSrcAssets + "/css/**/*.css", series(styles));
+}}
+
+// Production Tasks
+exports.default = series(
+    {plugins_task}
+    parallel(styles),
+    parallel(watchFiles)
+);
+
+// Build Tasks
+exports.build = series(
+    {plugins_task}
+    parallel(styles)
+);
+
+""" if tailwind else f"""
+const sass = gulpSass(dartSass);
+const uglify = gulUglifyES.default;
 
 const processCss = [
     autoprefixer(), // adds vendor prefixes
@@ -182,7 +201,7 @@ const minifyCss = [
     cssnano({{preset: 'default'}}), // minify result
 ];
 
-const scss = function () {{
+const styles = function () {{
     const out = paths.baseDistAssets + "/css/";
 
     return src(paths.baseSrcAssets + "/scss/**/*.scss")
@@ -222,20 +241,20 @@ const rtl = function () {{
 {plugins_fn}
 
 const watchFiles = function () {{
-    watch(paths.baseSrcAssets + "/scss/**/*.scss", series(scss));
+    watch(paths.baseSrcAssets + "/scss/**/*.scss", series(styles));
 }}
 
 // Production Tasks
 exports.default = series(
     {plugins_task}
-    parallel(scss),
+    parallel(styles),
     parallel(watchFiles)
 );
 
 // Build Tasks
 exports.build = series(
     {plugins_task}
-    parallel(scss)
+    parallel(styles)
 );
 
 // RTL Tasks
@@ -250,6 +269,32 @@ exports.rtlBuild = series(
     {plugins_task}
     parallel(rtl),
 );
+"""
+
+    gulpfile_template = f"""
+// Gulp and package
+const {{src, dest, parallel, series, watch}} = require('gulp');
+
+// Plugins
+const autoprefixer = require('autoprefixer');
+const concat = require('gulp-concat');
+const cssnano = require('cssnano');
+const pixrem = require('pixrem');
+const plumber = require('gulp-plumber');
+const postcss = require('gulp-postcss');
+const rename = require('gulp-rename');
+const gulUglifyES = require('gulp-uglify-es');
+const npmdist = require('gulp-npm-dist');
+{imports}
+
+{plugins_import}
+
+const paths = {{
+    baseSrcAssets: "{config.gulp_config.src_path}",   // source assets directory
+    baseDistAssets: "{config.gulp_config.dest_path}",  // build assets directory
+}};
+
+{functions}
     """.strip()
 
     gulpfile_path = config.project_root_path / "gulpfile.js"

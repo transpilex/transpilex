@@ -4,6 +4,7 @@ from pathlib import Path
 
 from transpilex.cli.prompts import ask_basic_project_info, ask_advanced_options
 from transpilex.config.project import ProjectConfig
+from transpilex.frameworks.laravel import LaravelConverter
 from transpilex.frameworks.php import PHPConvertor
 from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
 
@@ -38,3 +39,5 @@ def main():
 
     if project_info["framework"] == "php":
         PHPConvertor(config)
+    elif project_info["framework"] == "laravel":
+        LaravelConverter(config)

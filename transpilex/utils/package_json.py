@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 from transpilex.utils.logs import Log
 from transpilex.config.project import ProjectConfig
-from transpilex.config.base import GULP_DEV_DEPENDENCIES, VITE_DEV_DEPENDENCIES
+from transpilex.config.base import GULP_DEV_DEPENDENCIES, VITE_DEV_DEPENDENCIES, GULP_TW_DEV_DEPENDENCIES, \
+    VITE_TW_DEV_DEPENDENCIES
 
 
 def update_package_json(
@@ -31,11 +32,13 @@ def update_package_json(
     source_path = config.src_path / "package.json"
     destination_path = config.project_root_path / "package.json"
 
+    tailwind = config.ui_library == "tailwind"
+
     default_dev_deps = {}
     if config.frontend_pipeline.lower() == "gulp":
-        default_dev_deps = GULP_DEV_DEPENDENCIES
+        default_dev_deps = GULP_TW_DEV_DEPENDENCIES if tailwind else GULP_DEV_DEPENDENCIES
     elif config.frontend_pipeline.lower() == "vite":
-        default_dev_deps = VITE_DEV_DEPENDENCIES
+        default_dev_deps = VITE_TW_DEV_DEPENDENCIES if tailwind else VITE_DEV_DEPENDENCIES
 
     deps = deps or {}
     dev_deps = dev_deps if dev_deps is not None else default_dev_deps

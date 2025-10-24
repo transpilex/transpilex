@@ -8,13 +8,14 @@ from transpilex.config.base import PHP_VITE_CREATION_COMMAND
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, copy_public_only_assets
 from transpilex.utils.extract_fragments import extract_fragments
-from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, move_files
-from transpilex.utils.git import remove_git_folder
+from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, move_files, copy_items
+from transpilex.utils.git import remove_git_folders
 from transpilex.utils.gulpfile import add_gulpfile
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.replace_variables import replace_variables
+from transpilex.utils.template import replace_file_with_template
 
 
 class BasePHPConvertor:
@@ -144,7 +145,24 @@ class PHPGulpConverter(BasePHPConvertor):
 
         add_gulpfile(self.config)
 
-        update_package_json(self.config)
+        scripts = {
+            "dev": "gulp",
+            "build": "gulp build",
+            "rtl": "gulp rtl",
+            "rtl-build": "gulp rtlBuild"
+        }
+
+        if self.config.ui_library == "tailwind":
+            scripts = {
+                "dev": "gulp",
+                "build": "gulp build"
+            }
+
+        update_package_json(self.config,
+                            overrides={
+                                "type": "commonjs",
+                                "scripts": scripts
+                            })
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
@@ -152,9 +170,9 @@ class PHPGulpConverter(BasePHPConvertor):
 class PHPViteConverter(BasePHPConvertor):
     def __init__(self, config: ProjectConfig):
         super().__init__(config)
-        self.project_pages_path = Path(self.config.project_root_path / 'pages')
-        self.project_public_path = Path(self.config.project_root_path / 'public')
-        self.project_routes_path = Path(self.config.project_root_path / 'configs' / 'routes.php')
+        self.project_pages_path = Path(self.config.project_root_path / "pages")
+        self.project_public_path = Path(self.config.project_root_path / "public")
+        self.project_routes_path = Path(self.config.project_root_path / "configs" / "routes.php")
 
     def create_project(self):
 
@@ -168,7 +186,7 @@ class PHPViteConverter(BasePHPConvertor):
 
             Log.success("PHP project created successfully")
 
-            remove_git_folder(self.config.project_root_path)
+            remove_git_folders(self.config.project_root_path)
 
         except subprocess.CalledProcessError:
             Log.error("PHP project creation failed")
@@ -195,6 +213,10 @@ class PHPViteConverter(BasePHPConvertor):
                                     "build": "tsc --noEmit && vite build",
                                     "composer": "php ./bin/composer.phar"
                                 }})
+
+        if self.config.ui_library == "tailwind":
+            replace_file_with_template(Path(__file__).parent.parent / "templates" / "php-tw-vite.config.js",
+                                       self.config.project_root_path / "vite.config.js")
 
         self._generate_routes_php(self.project_pages_path, self.project_routes_path)
 
