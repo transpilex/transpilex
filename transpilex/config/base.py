@@ -68,11 +68,11 @@ FOLDERS = {
     "ecommerce", "form", "icons", "layouts", "maps", "forum", "plugins",
     "pages", "crm", "email", "finance", "hospital", "hrm", "invoice", "pos",
     "promo", "task", "users", "projects", "blog", "ticket", "dashboards", "sidenav", "auth-basic",
-    "auth-cover", "auth-boxed", "auth-modern", "hr"
+    "auth-cover", "auth-boxed", "auth-modern", "hr", "project", "auth-2", "auth-3", "misc","dashboard","utilities","forms"
 }
 
 NO_NESTING_FOLDERS = {
-    "auth",
+    "auth", "auth-2", "auth-3",
     "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern", "error",
 }
 
@@ -89,7 +89,7 @@ PHP_VITE_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/php-
 PHP_VARIABLE_REPLACEMENT = r'<?php echo ($\1); ?>'
 
 # Laravel
-LARAVEL_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/laravel/laravel.git', '.']
+LARAVEL_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/laravel-boilerplate.git', '.']
 LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = ['git', 'clone',
                                               'https://github.com/transpilex/laravel-boilerplate-with-auth.git', '.']
 
@@ -110,3 +110,4 @@ LOG_COLORS = {
     "RESET": "\033[0m",
     "GRAY": "\033[38;5;244m"
 }
+

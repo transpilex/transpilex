@@ -10,7 +10,7 @@ from transpilex.config.base import LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND, \
     LARAVEL_PROJECT_CREATION_COMMAND, LARAVEL_RESOURCES_PRESERVE, LARAVEL_AUTH_FOLDER
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, copy_public_only_assets, clean_relative_asset_paths
-from transpilex.utils.file import remove_item, empty_folder_contents
+from transpilex.utils.file import remove_item, empty_folder_contents, move_files
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
@@ -18,16 +18,13 @@ from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.restructure import restructure_and_copy_files
 
 
-class BaseLaravelConverter:
+class LaravelConverter:
     def __init__(self, config: ProjectConfig):
+
         self.config = config
 
-
-class LaravelConverter(BaseLaravelConverter):
-    def __init__(self, config: ProjectConfig):
-        super().__init__(config)
-
         self.project_views_path = Path(self.config.project_root_path / "resources" / "views")
+        self.project_shared_path = Path(self.config.project_root_path / "resources" / "views" / "shared")
         self.project_public_path = Path(self.config.project_root_path / "public")
 
         self.vite_inputs = set()
@@ -50,18 +47,15 @@ class LaravelConverter(BaseLaravelConverter):
 
             remove_git_folders(self.config.project_root_path)
 
-            remove_item(self.config.project_root_path / "CHANGELOG.md")
-
         except subprocess.CalledProcessError:
             Log.error("Laravel project creation failed")
             return
 
-        if not self.config.use_auth:
-            empty_folder_contents(self.project_views_path)
-
         restructure_and_copy_files(self.config.pages_path, self.project_views_path, self.config.file_extension)
 
         self._convert(self.project_views_path)
+
+        move_files(self.project_views_path / "partials", self.project_shared_path / "partials")
 
         public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
 
@@ -72,35 +66,35 @@ class LaravelConverter(BaseLaravelConverter):
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
-    def _parse_include_params(self, raw: str) -> dict:
-        """Parse parameters from JSON, PHP array, or Blade-style syntax."""
+    def _parse_include_params(self, raw: str):
+        """Parse JSON, PHP array, Blade array, or key="value" Handlebars-style params."""
         if not raw:
             return {}
 
         raw = html.unescape(raw.strip())
 
-        # --- Try JSON ---
+        # --- JSON object style ---
         if raw.startswith("{") and raw.endswith("}"):
             try:
                 cleaned = re.sub(r"([\{\s,])\s*([a-zA-Z_][\w-]*)\s*:", r'\1"\2":', raw)
                 cleaned = re.sub(r",\s*([\}\]])", r"\1", cleaned)
                 return json.loads(cleaned)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                Log.warning(f"JSON decode error in include params: {e}")
 
-        # --- Try PHP array syntax ---
+        # --- PHP array(...) style ---
         m_arr = re.search(r"array\s*\(([\s\S]*)\)", raw)
         if m_arr:
             return self._extract_php_array_params(f"array({m_arr.group(1)})")
 
-        # --- Try Blade ['key' => 'value'] ---
-        matches = re.findall(
+        # --- Blade array ['key' => 'value'] style ---
+        blade_matches = re.findall(
             r"['\"](?P<key>[^'\"]+)['\"]\s*=>\s*(['\"](?P<val>[^'\"]*)['\"]|(?P<bool>true|false)|(?P<num>-?\d+(?:\.\d+)?))",
-            raw
+            raw,
         )
-        if matches:
+        if blade_matches:
             parsed = {}
-            for k, _, v, b, n in matches:
+            for k, _, v, b, n in blade_matches:
                 if v:
                     parsed[k] = v
                 elif b:
@@ -108,6 +102,11 @@ class LaravelConverter(BaseLaravelConverter):
                 elif n:
                     parsed[k] = float(n) if "." in n else int(n)
             return parsed
+
+        # --- Handlebars-style key="value" ---
+        kv_pairs = re.findall(r"(\w+)=[\"']([^\"']+)[\"']", raw)
+        if kv_pairs:
+            return {k: v for k, v in kv_pairs}
 
         return {}
 
@@ -141,7 +140,7 @@ class LaravelConverter(BaseLaravelConverter):
                 result[key] = match.group("bool") == "true"
         return result
 
-    def _format_blade_params(self, data: dict) -> str:
+    def _format_blade_params(self, data: dict):
         """Format dict as Blade include parameter array."""
         formatted = []
         for key, value in data.items():
@@ -154,19 +153,16 @@ class LaravelConverter(BaseLaravelConverter):
                 formatted.append(f"'{key}' => {json.dumps(value)}")
         return ", ".join(formatted)
 
-    # ----------------------------------------------------------------------
-    # INCLUDE REPLACEMENT
-    # ----------------------------------------------------------------------
-
-    def _replace_all_includes_with_blade(self, content: str) -> str:
+    def _replace_all_includes_with_blade(self, content: str):
         """
-        Convert @@include(...) and {{> ...}} to Blade @include(...) syntax.
-        Uses import_patterns loaded from JSON.
+        Converts @@include(...) and {{> ...}} / {{&gt; ...}} to Blade @include(...),
+        auto-prepending 'shared.partials.' for all partial references.
         """
-
         fragments = []
         for label, pattern in self.config.import_patterns.items():
-            for match in pattern.finditer(content):
+            # Extend to also match escaped form ({{&gt; ...}})
+            alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+            for match in alt_pattern.finditer(content):
                 fragments.append({
                     "label": label,
                     "full": match.group(0),
@@ -178,27 +174,41 @@ class LaravelConverter(BaseLaravelConverter):
             path = frag["path"]
             params_raw = frag["params"]
 
-            # Skip title includes
-            if Path(path).name.lower() in {"title-meta.html", "app-meta-title.html"}:
+            # Normalize path: remove ./ or ../ prefixes
+            clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
+            clean_path = Path(clean_path).with_suffix("").as_posix()
+
+            # -----------------------------------------------------
+            # Auto-prepend shared.partials
+            # -----------------------------------------------------
+            # Case 1: partials/... → shared.partials....
+            if clean_path.startswith("partials/"):
+                clean_path = clean_path.replace("partials/", "shared/partials/", 1)
+            # Case 2: top-level includes (no folder)
+            elif "/" not in clean_path:
+                clean_path = f"shared/partials/{clean_path}"
+            # Case 3: already under shared (rare edge)
+            elif clean_path.startswith("shared/partials/"):
+                pass  # already correct
+
+            # Convert to dot notation for Blade
+            clean_path = clean_path.replace("/", ".")
+
+            # Skip title includes (they go into extends)
+            if Path(clean_path).name.lower() in {"title-meta", "app-meta-title"}:
                 content = content.replace(frag["full"], "")
                 continue
 
             params = self._parse_include_params(params_raw)
-            blade_path = Path(path).with_suffix("").as_posix().replace("/", ".")
-
             if params:
                 param_str = self._format_blade_params(params)
-                replacement = f"@include('{blade_path}', [{param_str}])"
+                replacement = f"@include('{clean_path}', [{param_str}])"
             else:
-                replacement = f"@include('{blade_path}')"
+                replacement = f"@include('{clean_path}')"
 
             content = content.replace(frag["full"], replacement)
 
         return content
-
-    # ----------------------------------------------------------------------
-    # CONVERSION LOGIC
-    # ----------------------------------------------------------------------
 
     def _convert(self, folder_path: Path):
         """Convert files inside Laravel views directory."""
@@ -209,17 +219,53 @@ class LaravelConverter(BaseLaravelConverter):
                 continue
 
             try:
-                content = file.read_text(encoding="utf-8")
+                original_content = file.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
                 continue
 
-            soup = BeautifulSoup(content, "html.parser")
+            # -------------------------------------------------
+            # STEP 1: EXTRACT PAGE TITLE *BEFORE* ANY MUTATION
+            # -------------------------------------------------
+            layout_title = ""
+            # normalize &gt; back to >
+            title_scan_source = original_content.replace("&gt;", ">")
+
+            for label, pattern in self.config.import_patterns.items():
+                # allow both {{> ...}} and {{&gt; ...}}
+                alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+                for m in alt_pattern.finditer(title_scan_source):
+                    # ex: "title-meta", "title-meta.html", "app-meta-title", etc.
+                    inc_name = Path(m.group("path")).stem.lower()
+
+                    if "title-meta" in inc_name or "app-meta-title" in inc_name:
+                        meta = self._parse_include_params(m.groupdict().get("params", "") or "")
+                        layout_title = meta.get("title") or meta.get("pageTitle") or ""
+                        break
+                if layout_title:
+                    break
+
+            escaped_title = layout_title.replace("'", "\\'")
+
+            # -------------------------------------------------
+            # STEP 2: NOW PROTECT HANDLEBARS AND PARSE WITH SOUP
+            # -------------------------------------------------
+            placeholder_map = {}
+
+            def _protect_handlebars(mm):
+                key = f"__HB_{len(placeholder_map)}__"
+                placeholder_map[key] = mm.group(0)
+                return key
+
+            protected_content = re.sub(r"\{\{[^{]+\}\}", _protect_handlebars, original_content)
+
+            soup = BeautifulSoup(protected_content, "html.parser")
             is_partial = "partials" in file.parts
 
-            # ---------------------------------------------------------
-            # 1️⃣ Partial Files
-            # ---------------------------------------------------------
+            # -------------------------------------------------
+            # STEP 3: PARTIALS
+            # -------------------------------------------------
             if is_partial:
+                # convert <script src="..."> to @vite in partials
                 for script_tag in soup.find_all("script"):
                     src = script_tag.get("src")
                     if not src:
@@ -234,40 +280,31 @@ class LaravelConverter(BaseLaravelConverter):
                         self.vite_inputs.add(transformed)
 
                 out = str(soup)
+
+                # restore original {{ ... }} blocks
+                for key, original in placeholder_map.items():
+                    out = out.replace(key, original)
+
                 out = self._replace_all_includes_with_blade(out)
                 out = clean_relative_asset_paths(out)
                 out = replace_html_links(out, "")
                 file.write_text(out, encoding="utf-8")
 
-                Log.converted(f"{file.relative_to(folder_path)} (partial)")
+                Log.converted(f"{file}")
                 count += 1
                 continue
 
-            # ---------------------------------------------------------
-            # 2️⃣ Full Page Files
-            # ---------------------------------------------------------
-            layout_title = ""
-            for pattern in self.config.import_patterns.values():
-                for m in pattern.finditer(content):
-                    if Path(m.group("path")).name.lower() in {"title-meta.html", "app-meta-title.html"}:
-                        meta = self._parse_include_params(m.groupdict().get("params", ""))
-                        layout_title = meta.get("title") or meta.get("pageTitle") or ""
-                        break
-                if layout_title:
-                    break
+            # -------------------------------------------------
+            # STEP 4: FULL PAGES
+            # -------------------------------------------------
 
-            escaped_title = layout_title.replace("'", "\\'")
-            extends_line = (
-                f"@extends('layouts.vertical', ['title' => '{escaped_title}'])"
-                if layout_title else "@extends('layouts.vertical')"
-            )
-
-            # Collect styles
+            # collect <link> tags
             links_html = "\n".join(f"    {str(tag)}" for tag in soup.find_all("link"))
-            for tag in soup.find_all("link"): tag.decompose()
+            for tag in soup.find_all("link"):
+                tag.decompose()
 
-            # Collect scripts
-            scripts_html = []
+            # collect <script> tags -> @vite where applicable
+            scripts_html_list = []
             for script_tag in soup.find_all("script"):
                 src = script_tag.get("src")
                 if not src:
@@ -278,23 +315,37 @@ class LaravelConverter(BaseLaravelConverter):
                 ):
                     transformed = re.sub(r"^assets/", "resources/", normalized, 1)
                     vite_line = f"@vite(['{transformed}'])"
-                    scripts_html.append(f"    {vite_line}")
+                    scripts_html_list.append(f"    {vite_line}")
                     self.vite_inputs.add(transformed)
                 else:
-                    scripts_html.append(f"    {str(script_tag)}")
+                    scripts_html_list.append(f"    {str(script_tag)}")
                 script_tag.decompose()
 
-            scripts_output = "\n".join(scripts_html)
+            scripts_output = "\n".join(scripts_html_list)
 
-            # Extract main content
+            # find main content region
             content_div = soup.find(attrs={"data-content": True})
-            body_html = (
-                content_div.decode_contents()
-                if content_div
-                else (soup.body.decode_contents() if soup.body else str(soup))
-            )
+            if content_div:
+                body_html = content_div.decode_contents()
+                layout_target = "shared.vertical"
+            elif soup.body:
+                body_html = soup.body.decode_contents()
+                layout_target = "shared.base"
+            else:
+                body_html = str(soup)
+                layout_target = "shared.base"
+
+            # restore {{ ... }} in body_html
+            for key, original in placeholder_map.items():
+                body_html = body_html.replace(key, original)
 
             main_content = self._replace_all_includes_with_blade(body_html).strip()
+
+            # finally choose extends line
+            if layout_title:
+                extends_line = f"@extends('{layout_target}', ['title' => '{escaped_title}'])"
+            else:
+                extends_line = f"@extends('{layout_target}')"
 
             blade_output = f"""{extends_line}
 
@@ -309,11 +360,12 @@ class LaravelConverter(BaseLaravelConverter):
 @section('scripts')
 {scripts_output}
 @endsection
-"""
+    """
 
             final = clean_relative_asset_paths(blade_output)
             file.write_text(final.strip() + "\n", encoding="utf-8")
-            Log.converted(f"{file.relative_to(folder_path)} (page)")
+
+            Log.converted(f"{file}")
             count += 1
 
-        Log.info(f"{count} Laravel Blade files converted in {folder_path}")
+        Log.info(f"{count} files converted in {folder_path}")
