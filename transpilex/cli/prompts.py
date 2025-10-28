@@ -53,7 +53,7 @@ def safe_ask(prompt):
     return prompt
 
 
-def ask_basic_project_info():
+def ask_project_config():
     project_name = safe_ask(questionary.text(
         "Project Name:",
         validate=is_valid_project_name,
@@ -68,6 +68,25 @@ def ask_basic_project_info():
         style=fresh_style,
         qmark=CUSTOM_QMARK,
     ).ask())
+
+    ui_library = safe_ask(questionary.select(
+        "Select UI Library:",
+        choices=UI_LIBRARIES,
+        style=fresh_style,
+        qmark=CUSTOM_QMARK,
+        default=DEFAULT_UI_LIBRARY,
+    ).ask())
+
+    if framework not in VITE_ONLY:
+        frontend_pipeline = safe_ask(questionary.select(
+            "Select Frontend Pipeline:",
+            choices=SUPPORTED_PIPELINES,
+            style=fresh_style,
+            qmark=CUSTOM_QMARK,
+            default=DEFAULT_PIPELINE
+        ).ask())
+    else:
+        frontend_pipeline = 'Vite'
 
     src_path = safe_ask(questionary.path(
         "Source Folder Path:",
@@ -113,28 +132,11 @@ def ask_basic_project_info():
     ).ask())
 
     new_dest_path = Path(dest_path) / framework.lower()
-    project_root_path = Path(new_dest_path / project_name)
+    project_root_path = Path(
+        new_dest_path / f"{project_name}-vite" if frontend_pipeline == "Vite" and framework not in VITE_ONLY else f"{project_name}")
     if folder_exists(project_root_path):
         Log.error(f"Project already exists at: {project_root_path}")
         return None
-
-    ui_library = safe_ask(questionary.select(
-        "Select UI Library:",
-        choices=UI_LIBRARIES,
-        style=fresh_style,
-        qmark=CUSTOM_QMARK,
-        default=DEFAULT_UI_LIBRARY,
-    ).ask())
-
-    frontend_pipeline = DEFAULT_PIPELINE
-    if framework not in VITE_ONLY:
-        frontend_pipeline = safe_ask(questionary.select(
-            "Select Frontend Pipeline:",
-            choices=SUPPORTED_PIPELINES,
-            style=fresh_style,
-            qmark=CUSTOM_QMARK,
-            default=DEFAULT_PIPELINE
-        ).ask())
 
     use_auth = questionary.confirm(
         "Include default authentication setup?",
@@ -145,6 +147,7 @@ def ask_basic_project_info():
 
     framework = framework.lower()
     frontend_pipeline = frontend_pipeline.lower()
+    plugins_folder = GULP_PLUGINS_FOLDER
 
     if framework == "php":
         if frontend_pipeline == "vite":
@@ -168,6 +171,87 @@ def ask_basic_project_info():
         variable_replacement = None
         file_extension = None
 
+    # Advanced Options
+    advanced = safe_ask(questionary.confirm(
+        "Show advanced options?",
+        default=False,
+        style=fresh_style,
+        qmark=CUSTOM_QMARK,
+    ).ask())
+
+    if advanced:
+        choices = ["assets"]
+        if frontend_pipeline == "gulp":
+            choices.append("gulpfile")
+
+        selected_options = safe_ask(questionary.checkbox(
+            "Select one or more advanced options:",
+            choices=choices,
+            style=fresh_style,
+            qmark=CUSTOM_QMARK
+        ).ask())
+
+        if "assets" in selected_options:
+
+            questionary.print(
+                "\nConfigure assets settings:",
+                style="bold",
+            )
+
+            detect_assets = safe_ask(questionary.confirm(
+                "Are your assets located in multiple folders?",
+                default=False,
+                style=fresh_style,
+                qmark=CUSTOM_QMARK,
+            ).ask())
+
+            if detect_assets:
+                assets = []
+                questionary.print(
+                    "\nAdd all folders that contain assets (CSS, JS, images, etc.). Leave blank when done.",
+                    style="bold",
+                )
+
+                while True:
+                    folder = safe_ask(questionary.path(
+                        "Add folder:",
+                        style=fresh_style,
+                        qmark=CUSTOM_QMARK,
+                        validate=validate_folder_exists,
+                        only_directories=True
+                    ).ask())
+                    if not folder:
+                        break
+                    assets.append(Path(folder))
+
+                if assets:
+                    questionary.print(
+                        f"{len(assets)} asset folders selected.",
+                        style="fg:#6AAB73 bold",
+                    )
+
+                    project_assets_path = safe_ask(questionary.path(
+                        "Destination folder path to merge all selected assets (relative to project root):",
+                        style=fresh_style,
+                        qmark=CUSTOM_QMARK,
+                        default=str(project_assets_path)
+                    ).ask())
+
+                    asset_paths = assets
+
+        if "gulpfile" in selected_options:
+            questionary.print(
+                "\nConfigure gulpfile settings:",
+                style="bold",
+            )
+
+            plugins_folder = safe_ask(questionary.text(
+                "Plugin Folder Name:",
+                style=fresh_style,
+                qmark=CUSTOM_QMARK,
+                default=str(plugins_folder)
+            ).ask())
+
     return {
         "project_name": project_name,
         "framework": framework,
@@ -175,7 +259,8 @@ def ask_basic_project_info():
         "frontend_pipeline": frontend_pipeline,
         "src_path": src_path,
         "pages_path": Path(pages_path),
-        "asset_paths": Path(asset_paths) if len(asset_paths) > 0 else None,
+        "asset_paths": asset_paths if isinstance(asset_paths, (list, Path)) else (
+            Path(asset_paths) if asset_paths else None),
         "partials_path": Path(partials_path) if len(partials_path) > 0 else None,
         "dest_path": Path(new_dest_path),
         "project_root_path": project_root_path,
@@ -187,58 +272,6 @@ def ask_basic_project_info():
         "gulp_config": GulpConfig(
             src_path=project_assets_path,
             dest_path=project_assets_path,
-            plugins_folder=GULP_PLUGINS_FOLDER
+            plugins_folder=plugins_folder
         )
     }
-
-
-def ask_advanced_options(default_project_assets_path: str | Path):
-    """Prompt for advanced asset detection and merging."""
-    advanced = safe_ask(questionary.confirm(
-        "Show advanced options?",
-        default=False,
-        style=fresh_style,
-        qmark=CUSTOM_QMARK,
-    ).ask())
-
-    asset_paths = []
-    new_project_assets_path = default_project_assets_path
-
-    if not advanced:
-        return asset_paths, default_project_assets_path
-
-    detect_assets = safe_ask(questionary.confirm(
-        "Are your assets located in multiple folders?",
-        default=False,
-        style=fresh_style,
-        qmark=CUSTOM_QMARK,
-    ).ask())
-
-    if detect_assets:
-
-        questionary.print("\nAdd all folders that contain assets. Leave blank when done.", style="bold")
-
-        while True:
-            folder = safe_ask(questionary.path(
-                "Add folder:",
-                style=fresh_style,
-                qmark=CUSTOM_QMARK,
-                validate=validate_folder_exists,
-                only_directories=True
-            ).ask())
-
-            if not folder:
-                break
-            asset_paths.append(Path(folder))
-
-        if asset_paths:
-            questionary.print(f"{len(asset_paths)} folders selected.", style="fg:#6AAB73 bold")
-
-            new_project_assets_path = safe_ask(questionary.path(
-                "Destination folder path to merge all detected assets (provide path from project root):",
-                style=fresh_style,
-                qmark=CUSTOM_QMARK,
-                default=str(default_project_assets_path)
-            ).ask())
-
-    return asset_paths, new_project_assets_path

@@ -53,6 +53,7 @@ GULP_TW_DEV_DEPENDENCIES = {
 }
 
 VITE_DEV_DEPENDENCIES = {
+    "sass": "1.77.6"
 }
 
 VITE_TW_DEV_DEPENDENCIES = {
@@ -68,7 +69,8 @@ FOLDERS = {
     "ecommerce", "form", "icons", "layouts", "maps", "forum", "plugins",
     "pages", "crm", "email", "finance", "hospital", "hrm", "invoice", "pos",
     "promo", "task", "users", "projects", "blog", "ticket", "dashboards", "sidenav", "auth-basic",
-    "auth-cover", "auth-boxed", "auth-modern", "hr", "project", "auth-2", "auth-3", "misc","dashboard","utilities","forms"
+    "auth-cover", "auth-boxed", "auth-modern", "hr", "project", "auth-2", "auth-3", "misc", "dashboard", "utilities",
+    "forms"
 }
 
 NO_NESTING_FOLDERS = {
@@ -79,11 +81,11 @@ NO_NESTING_FOLDERS = {
 # PHP
 PHP_EXTENSION = '.php'
 
-PHP_ASSETS_PATH = "./src/assets"
-PHP_PARTIALS_PATH = Path("src/partials")
+PHP_ASSETS_PATH = "src/assets"
+PHP_PARTIALS_PATH = "src/partials"
 
-PHP_VITE_ASSETS_PATH = "./src"
-PHP_VITE_PARTIALS_PATH = Path("partials")
+PHP_VITE_ASSETS_PATH = "src"
+PHP_VITE_PARTIALS_PATH = "partials"
 PHP_VITE_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/php-vite-boilerplate.git', '.']
 
 PHP_VARIABLE_REPLACEMENT = r'<?php echo ($\1); ?>'
@@ -93,12 +95,10 @@ LARAVEL_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpil
 LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = ['git', 'clone',
                                               'https://github.com/transpilex/laravel-boilerplate-with-auth.git', '.']
 
-LARAVEL_EXTENSION = '.blade.php'
-LARAVEL_ASSETS_PATH = './resources'
-LARAVEL_PARTIALS_PATH = Path("resources/views/partials")
+LARAVEL_EXTENSION = ".blade.php"
+LARAVEL_ASSETS_PATH = "resources"
+LARAVEL_PARTIALS_PATH = "resources/views/partials"
 LARAVEL_RESOURCES_PRESERVE = ["views"]
-LARAVEL_GULP_ASSETS_PATH = './public'
-LARAVEL_AUTH_FOLDER = 'default-auth'
 
 LARAVEL_VARIABLE_REPLACEMENT = r'{{ $\1 }}'
 
@@ -111,3 +111,6 @@ LOG_COLORS = {
     "GRAY": "\033[38;5;244m"
 }
 
+IGNORE_PLUGINS = [
+
+]

@@ -7,7 +7,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString
 
 from transpilex.config.base import LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND, \
-    LARAVEL_PROJECT_CREATION_COMMAND, LARAVEL_RESOURCES_PRESERVE, LARAVEL_AUTH_FOLDER
+    LARAVEL_PROJECT_CREATION_COMMAND, LARAVEL_RESOURCES_PRESERVE
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, copy_public_only_assets, clean_relative_asset_paths
 from transpilex.utils.file import remove_item, empty_folder_contents, move_files
@@ -15,6 +15,7 @@ from transpilex.utils.git import remove_git_folders
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_html_links import replace_html_links
+from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
 
 
@@ -26,8 +27,8 @@ class LaravelConverter:
         self.project_views_path = Path(self.config.project_root_path / "resources" / "views")
         self.project_shared_path = Path(self.config.project_root_path / "resources" / "views" / "shared")
         self.project_public_path = Path(self.config.project_root_path / "public")
-
-        self.vite_inputs = set()
+        self.project_vite_path = Path(self.config.project_root_path / "vite.config.js")
+        self.vite_inputs = {'resources/scss/app.scss'}
 
         self.create_project()
 
@@ -55,14 +56,19 @@ class LaravelConverter:
 
         self._convert(self.project_views_path)
 
-        move_files(self.project_views_path / "partials", self.project_shared_path / "partials")
+        if self.config.partials_path:
+            move_files(self.project_views_path / "partials", self.project_shared_path / "partials")
+            replace_variables(self.config.project_partials_path, self.config.variable_patterns,
+                              self.config.variable_replacement, self.config.file_extension)
 
-        public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
+        if self.config.asset_paths:
+            public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
+            copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only,
+                        preserve=LARAVEL_RESOURCES_PRESERVE)
 
-        copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only,
-                    preserve=LARAVEL_RESOURCES_PRESERVE)
+        update_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 
-        update_package_json(self.config)
+        self._update_vite_config()
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
@@ -178,9 +184,6 @@ class LaravelConverter:
             clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
             clean_path = Path(clean_path).with_suffix("").as_posix()
 
-            # -----------------------------------------------------
-            # Auto-prepend shared.partials
-            # -----------------------------------------------------
             # Case 1: partials/... → shared.partials....
             if clean_path.startswith("partials/"):
                 clean_path = clean_path.replace("partials/", "shared/partials/", 1)
@@ -223,9 +226,6 @@ class LaravelConverter:
             except (UnicodeDecodeError, OSError):
                 continue
 
-            # -------------------------------------------------
-            # STEP 1: EXTRACT PAGE TITLE *BEFORE* ANY MUTATION
-            # -------------------------------------------------
             layout_title = ""
             # normalize &gt; back to >
             title_scan_source = original_content.replace("&gt;", ">")
@@ -246,9 +246,6 @@ class LaravelConverter:
 
             escaped_title = layout_title.replace("'", "\\'")
 
-            # -------------------------------------------------
-            # STEP 2: NOW PROTECT HANDLEBARS AND PARSE WITH SOUP
-            # -------------------------------------------------
             placeholder_map = {}
 
             def _protect_handlebars(mm):
@@ -261,9 +258,6 @@ class LaravelConverter:
             soup = BeautifulSoup(protected_content, "html.parser")
             is_partial = "partials" in file.parts
 
-            # -------------------------------------------------
-            # STEP 3: PARTIALS
-            # -------------------------------------------------
             if is_partial:
                 # convert <script src="..."> to @vite in partials
                 for script_tag in soup.find_all("script"):
@@ -293,10 +287,6 @@ class LaravelConverter:
                 Log.converted(f"{file}")
                 count += 1
                 continue
-
-            # -------------------------------------------------
-            # STEP 4: FULL PAGES
-            # -------------------------------------------------
 
             # collect <link> tags
             links_html = "\n".join(f"    {str(tag)}" for tag in soup.find_all("link"))
@@ -369,3 +359,36 @@ class LaravelConverter:
             count += 1
 
         Log.info(f"{count} files converted in {folder_path}")
+
+    def _update_vite_config(self):
+        """
+        Always recreate vite.config.js with the current inputs.
+        Removes all existing content and writes a minimal, valid configuration file.
+        """
+        # Prepare Vite input list (exclude .min files)
+        filtered_inputs = [p for p in sorted(self.vite_inputs) if ".min" not in p]
+        inputs_str = ",\n            ".join(f"'{p}'" for p in filtered_inputs)
+        new_input_block = f"input: [\n            {inputs_str}\n        ]"
+
+        tailwind = self.config.ui_library == "tailwind"
+
+        # Create clean minimal config
+        minimal_config = f"""import {{ defineConfig }} from 'vite';
+import laravel from 'laravel-vite-plugin';
+{"import tailwindcss from '@tailwindcss/vite';" if tailwind else ""}
+
+export default defineConfig({{
+    plugins: [
+        laravel({{
+            {new_input_block},
+            refresh: true,
+        }}),
+        {"tailwindcss()" if tailwind else ""}
+    ],
+}});
+    """
+
+        self.project_vite_path.parent.mkdir(parents=True, exist_ok=True)
+        self.project_vite_path.write_text(minimal_config.strip(), encoding="utf-8")
+
+        Log.info(f"vite.config.js regenerated with {len(filtered_inputs)} inputs at: {self.project_vite_path}")

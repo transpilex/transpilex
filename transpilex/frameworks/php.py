@@ -137,11 +137,12 @@ class PHPGulpConverter(BasePHPConvertor):
 
         self._convert(self.project_src_path)
 
-        if self.config.project_partials_path:
+        if self.config.partials_path:
             replace_variables(self.config.project_partials_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
 
-        copy_assets(self.config.asset_paths, self.config.project_assets_path)
+        if self.config.asset_paths:
+            copy_assets(self.config.asset_paths, self.config.project_assets_path)
 
         add_gulpfile(self.config)
 
@@ -197,14 +198,14 @@ class PHPViteConverter(BasePHPConvertor):
 
         self._convert(self.project_pages_path)
 
-        if self.config.project_partials_path:
+        if self.config.partials_path:
             move_files(Path(self.project_pages_path / "partials"), self.config.project_partials_path)
             replace_variables(self.config.project_partials_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
 
-        public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
-
-        copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
+        if self.config.asset_paths:
+            public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
+            copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
 
         update_package_json(self.config,
                             overrides={

@@ -66,7 +66,6 @@ def copy_assets(
 
         for item in src_path.iterdir():
             if item.name in exclude:
-                Log.info(f"Skipped excluded: {item.name}")
                 continue
 
             dest_item = dest_subfolder / item.name
