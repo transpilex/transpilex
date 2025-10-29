@@ -99,6 +99,13 @@ class BasePHPConvertor:
                 )
 
                 content = re.sub(
+                    r"""(background(?:-image)?\s*:\s*url\((['"]?))((?:\.\./|\./|/)?(?:assets/)?)(images/[^'")]+)(['"]?\))""",
+                    r'\1%BASE%/\4\5',
+                    content,
+                    flags=re.IGNORECASE
+                )
+
+                content = re.sub(
                     r"""(<script[^>]*src\s*=\s*["'])((?:\.\./|\./|/)?(?:assets/)?)([^"']+\.js[^"']*)""",
                     r'\1/src/\3',
                     content,
@@ -165,6 +172,8 @@ class PHPGulpConverter(BasePHPConvertor):
                                 "scripts": scripts
                             })
 
+        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
@@ -197,6 +206,7 @@ class PHPViteConverter(BasePHPConvertor):
         copy_and_change_extension(files, self.config.pages_path, self.project_pages_path, self.config.file_extension)
 
         self._convert(self.project_pages_path)
+        self._convert(self.config.project_partials_path)
 
         if self.config.partials_path:
             move_files(Path(self.project_pages_path / "partials"), self.config.project_partials_path)
@@ -204,6 +214,7 @@ class PHPViteConverter(BasePHPConvertor):
                               self.config.variable_replacement, self.config.file_extension)
 
         if self.config.asset_paths:
+            copy_items(Path(self.config.src_path / "public"), self.config.project_root_path)
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
 
@@ -214,6 +225,8 @@ class PHPViteConverter(BasePHPConvertor):
                                     "build": "tsc --noEmit && vite build",
                                     "composer": "php ./bin/composer.phar"
                                 }})
+
+        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
         if self.config.ui_library == "tailwind":
             replace_file_with_template(Path(__file__).parent.parent / "templates" / "php-tw-vite.config.js",

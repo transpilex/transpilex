@@ -10,11 +10,10 @@ from transpilex.config.base import LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND, \
     LARAVEL_PROJECT_CREATION_COMMAND, LARAVEL_RESOURCES_PRESERVE
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, copy_public_only_assets, clean_relative_asset_paths
-from transpilex.utils.file import remove_item, empty_folder_contents, move_files
+from transpilex.utils.file import move_files, copy_items
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
-from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
 
@@ -22,13 +21,14 @@ from transpilex.utils.restructure import restructure_and_copy_files
 class LaravelConverter:
     def __init__(self, config: ProjectConfig):
 
+        self.route_map = None
         self.config = config
 
         self.project_views_path = Path(self.config.project_root_path / "resources" / "views")
         self.project_shared_path = Path(self.config.project_root_path / "resources" / "views" / "shared")
         self.project_public_path = Path(self.config.project_root_path / "public")
         self.project_vite_path = Path(self.config.project_root_path / "vite.config.js")
-        self.vite_inputs = {'resources/scss/app.scss'}
+        self.vite_inputs = {}
 
         self.create_project()
 
@@ -52,16 +52,21 @@ class LaravelConverter:
             Log.error("Laravel project creation failed")
             return
 
-        restructure_and_copy_files(self.config.pages_path, self.project_views_path, self.config.file_extension)
+        self.route_map = restructure_and_copy_files(
+            self.config.pages_path,
+            self.project_views_path,
+            self.config.file_extension
+        )
 
         self._convert(self.project_views_path)
 
         if self.config.partials_path:
             move_files(self.project_views_path / "partials", self.project_shared_path / "partials")
-            replace_variables(self.config.project_partials_path, self.config.variable_patterns,
+            replace_variables(self.project_shared_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
 
         if self.config.asset_paths:
+            copy_items(Path(self.config.src_path / "public"), self.config.project_root_path)
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only,
                         preserve=LARAVEL_RESOURCES_PRESERVE)
@@ -69,6 +74,8 @@ class LaravelConverter:
         update_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 
         self._update_vite_config()
+
+        self._generate_routes(self.project_views_path, self.config.project_root_path / "routes" / "web.php")
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
@@ -256,7 +263,7 @@ class LaravelConverter:
             protected_content = re.sub(r"\{\{[^{]+\}\}", _protect_handlebars, original_content)
 
             soup = BeautifulSoup(protected_content, "html.parser")
-            is_partial = "partials" in file.parts
+            is_partial = "partials" in file.parts or "shared" in file.parts
 
             if is_partial:
                 # convert <script src="..."> to @vite in partials
@@ -281,7 +288,8 @@ class LaravelConverter:
 
                 out = self._replace_all_includes_with_blade(out)
                 out = clean_relative_asset_paths(out)
-                out = replace_html_links(out, "")
+                out = self._replace_anchor_links_with_routes(out, self.route_map)
+                out = re.sub(r'(@yield\(.*?\))=""', r'\1', out)
                 file.write_text(out, encoding="utf-8")
 
                 Log.converted(f"{file}")
@@ -337,7 +345,11 @@ class LaravelConverter:
             else:
                 extends_line = f"@extends('{layout_target}')"
 
+            html_attr_section = self._extract_html_data_attributes(original_content)
+
             blade_output = f"""{extends_line}
+            
+{html_attr_section}
 
 @section('styles')
 {links_html}
@@ -353,6 +365,7 @@ class LaravelConverter:
     """
 
             final = clean_relative_asset_paths(blade_output)
+            final = self._replace_anchor_links_with_routes(final, self.route_map)
             file.write_text(final.strip() + "\n", encoding="utf-8")
 
             Log.converted(f"{file}")
@@ -392,3 +405,95 @@ export default defineConfig({{
         self.project_vite_path.write_text(minimal_config.strip(), encoding="utf-8")
 
         Log.info(f"vite.config.js regenerated with {len(filtered_inputs)} inputs at: {self.project_vite_path}")
+
+    def _generate_routes(self, views_dir: Path, web_php_path: Path):
+        """
+        Generate Laravel routes based on view file structure and append them to routes/web.php.
+
+        Parameters:
+            views_dir (Path): Path to 'resources/views' directory.
+            web_php_path (Path): Path to 'routes/web.php' file.
+        """
+        routes = []
+
+        for file in views_dir.rglob("*.blade.php"):
+            # skip shared/partials
+            if any(part in {"shared", "partials"} for part in file.parts):
+                continue
+
+            # relative view name (e.g., charts.apex.area)
+            rel_path = file.relative_to(views_dir)
+            view_name = rel_path.as_posix().replace(".blade.php", "").replace("/", ".")
+
+            # convert to URL path (e.g., /charts/apex/area)
+            route_path = "/" + rel_path.as_posix().replace(".blade.php", "")
+
+            # Handle index pages -> `/`
+            if route_path.endswith("/index"):
+                route_path = route_path[:-6] or "/"
+
+            route_code = (
+                f"Route::get('{route_path}', function () {{\n"
+                f"    return view('{view_name}');\n"
+                f"}});"
+            )
+            routes.append(route_code)
+
+        routes_text = "\n\n".join(routes)
+
+        if not routes:
+            Log.warning("No routes generated — no Blade views found.")
+            return
+
+        # Add section header for clarity
+        appended_block = f"\n{routes_text}\n"
+
+        # Append or create the file safely
+        web_php_path.parent.mkdir(parents=True, exist_ok=True)
+        if web_php_path.exists():
+            with open(web_php_path, "a", encoding="utf-8") as f:
+                f.write(appended_block)
+            Log.success(f"Appended {len(routes)} routes to {web_php_path}")
+        else:
+            with open(web_php_path, "w", encoding="utf-8") as f:
+                f.write("<?php\n\nuse Illuminate\\Support\\Facades\\Route;\n")
+                f.write(appended_block)
+            Log.success(f"Created new {web_php_path} with {len(routes)} routes")
+
+        return routes_text
+
+    def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]) -> str:
+        """
+        Replace <a href="filename.html"> links with Laravel route URLs from the route map.
+        """
+
+        pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
+
+        def repl(match):
+            href_val = match.group("href")  # e.g., "auth-lock-screen.html"
+            href_file = Path(href_val).name  # just filename.html
+            if href_file in route_map:
+                route_path = route_map[href_file]  # e.g., "/auth/lock-screen"
+                if route_path == "/index":
+                    return f"href=\"{{{{ url('/') }}}}\""
+                return f"href=\"{{{{ url('{route_path}') }}}}\""
+            return match.group(0)
+
+        return pattern.sub(repl, content)
+
+    def _extract_html_data_attributes(self, html_content: str) -> str:
+        """
+        Extracts all attributes from the <html> tag that start with 'data-'
+        and returns a Blade @section('html_attribute') block.
+        """
+        soup = BeautifulSoup(html_content, "html.parser")
+        html_tag = soup.find("html")
+        if not html_tag:
+            return ""
+
+        attrs = [f'{k}="{v}"' for k, v in html_tag.attrs.items() if k.startswith("data-")]
+        if not attrs:
+            return ""
+
+        attrs_str = " ".join(attrs)
+        return f"@section('html_attribute')\n{attrs_str}\n@endsection"

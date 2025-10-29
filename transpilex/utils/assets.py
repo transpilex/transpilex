@@ -147,22 +147,49 @@ def copy_public_only_assets(
 
 def clean_relative_asset_paths(content: str) -> str:
     """
-    Cleans up <script src="..."> and <link href="..."> paths:
-    - Removes leading 'assets/', '../assets/', '..assets/' etc. from local paths
-    - Does NOT modify URLs containing 'assets/' in the middle (like external CDNs)
+    Cleans up <script src="...">, <link href="...">, and CSS url(...):
+    - Removes leading 'assets/', '../assets/', etc.
+    - Ensures cleaned local paths always start with '/'
+    - Skips external URLs (with http://, https://, //, or domain names)
     """
 
-    def clean_match(match):
-        attr = match.group(1)
-        path = match.group(2).strip()
+    def clean_path(path: str) -> str:
+        path = path.strip().strip('"\'')  # remove quotes if any
 
-        # Skip if it contains :// or starts like cdn.domain.com
+        # Skip if external (CDN, protocol, or domain)
         if re.match(r'^(?:[a-z]+:)?//|^[\w.-]+\.\w+/', path):
-            return match.group(0)
+            return path
 
-        # Clean if path starts with relative asset path
-        cleaned = re.sub(r'^(\.{0,2}/)*assets', '', path)
-        return f'{attr}="{cleaned}"'
+        # Remove relative asset prefixes
+        cleaned = re.sub(r'^(\.{0,2}/)*assets/?', '', path)
 
-    # Clean both href="..." and src="..."
-    return re.sub(r'\b(src|href)\s*=\s*["\']([^"\']+)["\']', clean_match, content)
+        # Always prefix with '/'
+        if not cleaned.startswith('/'):
+            cleaned = '/' + cleaned
+
+        return cleaned
+
+    # Clean href/src attributes
+    def attr_replacer(match):
+        attr, path = match.groups()
+        return f'{attr}="{clean_path(path)}"'
+
+    content = re.sub(
+        r'\b(src|href)\s*=\s*["\']([^"\']+)["\']',
+        attr_replacer,
+        content
+    )
+
+    # Clean CSS-style url(...)
+    def css_url_replacer(match):
+        path = match.group(1).strip(' "\'')
+        cleaned = clean_path(path)
+        return f'url({cleaned})'
+
+    content = re.sub(
+        r'url\(([^)]+)\)',
+        css_url_replacer,
+        content
+    )
+
+    return content

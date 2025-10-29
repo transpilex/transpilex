@@ -111,6 +111,8 @@ LOG_COLORS = {
     "GRAY": "\033[38;5;244m"
 }
 
-IGNORE_PLUGINS = [
-
+EXTRA_FILES = [
+    "bun.lock",
+    "yarn.lock",
+    "package-lock.json"
 ]

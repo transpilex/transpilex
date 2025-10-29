@@ -104,27 +104,21 @@ def _get_restructured_path(src_file: Path, src_root: Path, dest_root: Path) -> P
 
 def restructure_and_copy_files(src_path: Path, dest_path: Path, extension: str = None):
     """
-    Recursively copies all HTML files from src_path to dest_path,
-    applying the restructuring logic to all files based on their parent folder.
-
-    Args:
-        src_path (Path): Source directory path.
-        dest_path (Path): Destination directory path.
-        extension (str, optional): New file extension (e.g., '.php').
-                                  If not provided, keeps the original extension.
+    Recursively copies all HTML files from src_path to dest_path using your restructure logic,
+    and returns a mapping of ORIGINAL html filenames -> NEW route path.
     """
 
     if not src_path.is_dir():
         Log.error(f"Source path is not a valid directory: {src_path}")
-        return
+        return {}
 
     copied_count = 0
+    route_map: dict[str, str] = {}
 
     for src_file in src_path.rglob("*.html"):
         if not src_file.is_file():
             continue
 
-        # Get a destination path using restructure logic
         dest_file = _get_restructured_path(src_file, src_path, dest_path)
 
         if extension:
@@ -134,7 +128,20 @@ def restructure_and_copy_files(src_path: Path, dest_path: Path, extension: str =
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dest_file)
             copied_count += 1
+
+            # Build URL route from dest_file structure
+            #    - Take the path relative to dest_path
+            rel_dest = dest_file.relative_to(dest_path)
+            no_ext = rel_dest.with_suffix("")
+            route_stem = no_ext.as_posix().removesuffix(".blade")
+
+            #    - Prepend "/"
+            route_path = "/" + route_stem.lstrip("/")
+
+            route_map[src_file.name] = route_path
+
         except Exception as e:
             Log.error(f"Failed to copy {src_file} to {dest_file}: {e}")
 
     Log.info(f"Restructured {copied_count} files to '{dest_path}'")
+    return route_map

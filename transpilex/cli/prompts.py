@@ -131,9 +131,9 @@ def ask_project_config():
         only_directories=True
     ).ask())
 
-    new_dest_path = Path(dest_path) / framework.lower()
-    project_root_path = Path(
-        new_dest_path / f"{project_name}-vite" if frontend_pipeline == "Vite" and framework not in VITE_ONLY else f"{project_name}")
+    new_dest_path = Path(
+        dest_path) / f"{framework.lower()}-vite" if frontend_pipeline == "Vite" and framework not in VITE_ONLY else f"{framework.lower()}"
+    project_root_path = Path(new_dest_path) / project_name
     if folder_exists(project_root_path):
         Log.error(f"Project already exists at: {project_root_path}")
         return None
