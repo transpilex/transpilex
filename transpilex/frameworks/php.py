@@ -99,6 +99,13 @@ class BasePHPConvertor:
                 )
 
                 content = re.sub(
+                    r"""(href\s*=\s*["'])((?:\.\./|\./|/)?(?:assets/)?)(images/[^"']+)""",
+                    r'\1%BASE%/\3',
+                    content,
+                    flags=re.IGNORECASE
+                )
+
+                content = re.sub(
                     r"""(background(?:-image)?\s*:\s*url\((['"]?))((?:\.\./|\./|/)?(?:assets/)?)(images/[^'")]+)(['"]?\))""",
                     r'\1%BASE%/\4\5',
                     content,

@@ -8,7 +8,8 @@ from transpilex.config.base import (
     SOURCE_PATH, ASSETS_PATH, DESTINATION_PATH,
     DEFAULT_PIPELINE, PARTIALS_PATH, UI_LIBRARIES, DEFAULT_UI_LIBRARY, PHP_VITE_ASSETS_PATH, PHP_ASSETS_PATH,
     PHP_VITE_PARTIALS_PATH, PHP_PARTIALS_PATH, PHP_VARIABLE_REPLACEMENT, PHP_EXTENSION, PAGES_PATH, LARAVEL_ASSETS_PATH,
-    LARAVEL_PARTIALS_PATH, LARAVEL_VARIABLE_REPLACEMENT, LARAVEL_EXTENSION, GULP_PLUGINS_FOLDER
+    LARAVEL_PARTIALS_PATH, LARAVEL_VARIABLE_REPLACEMENT, LARAVEL_EXTENSION, GULP_PLUGINS_FOLDER, DJANGO_EXTENSION,
+    DJANGO_ASSETS_PATH, DJANGO_PARTIALS_PATH, DJANGO_VARIABLE_REPLACEMENT
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -165,6 +166,12 @@ def ask_project_config():
         project_partials_path = LARAVEL_PARTIALS_PATH
         variable_replacement = LARAVEL_VARIABLE_REPLACEMENT
         file_extension = LARAVEL_EXTENSION
+
+    elif framework == "django":
+        project_assets_path = Path(project_name) / DJANGO_ASSETS_PATH
+        project_partials_path = Path(project_name) / DJANGO_PARTIALS_PATH
+        variable_replacement = DJANGO_VARIABLE_REPLACEMENT
+        file_extension = DJANGO_EXTENSION
     else:
         project_assets_path = None
         project_partials_path = None

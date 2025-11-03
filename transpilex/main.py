@@ -4,6 +4,7 @@ from pathlib import Path
 
 from transpilex.cli.prompts import ask_project_config
 from transpilex.config.project import ProjectConfig
+from transpilex.frameworks.django import DjangoConvertor
 from transpilex.frameworks.laravel import LaravelConverter
 from transpilex.frameworks.php import PHPConvertor
 from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
@@ -39,3 +40,5 @@ def main():
         PHPConvertor(config)
     elif project_config["framework"] == "laravel":
         LaravelConverter(config)
+    elif project_config["framework"] == "django":
+        DjangoConvertor(config)

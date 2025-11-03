@@ -1,6 +1,4 @@
-from pathlib import Path
-
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -63,24 +61,45 @@ VITE_TW_DEV_DEPENDENCIES = {
 
 PUBLIC_ONLY_ASSETS = ["images", "img", "media", "data", "json"]
 
+# For generating folder structure
 FOLDERS = {
-    "charts", "sidebar", "topbar", "apex", "echart", "chartjs", "auth",
-    "auth-card", "auth-split", "error", "apps", "tables", "datatables", "ui",
-    "ecommerce", "form", "icons", "layouts", "maps", "forum", "plugins",
-    "pages", "crm", "email", "finance", "hospital", "hrm", "invoice", "pos",
-    "promo", "task", "users", "projects", "blog", "ticket", "dashboards", "sidenav", "auth-basic",
-    "auth-cover", "auth-boxed", "auth-modern", "hr", "project", "auth-2", "auth-3", "misc", "dashboard", "utilities",
-    "forms"
+    "dashboard", "dashboards",
+    "apps", "ecommerce", "hr", "project", "promo", "task", "users", "projects", "blog", "ticket", "forum", "crm",
+    "email", "finance", "hospital", "hrm", "invoice", "pos",
+    "pages",
+    "misc",
+    "plugins",
+    "auth", "auth-2", "auth-3", "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern",
+    "error",
+    "layouts", "sidebar", "topbar", "sidenav",
+    "ui", "base-ui",
+    "form", "forms",
+    "chart", "charts", "apex", "echart", "chartjs",
+    "table", "tables", "datatables",
+    "icon", "icons",
+    "map", "maps",
+    "utilities",
 }
 
+# No further nesting will take place inside these folders
 NO_NESTING_FOLDERS = {
-    "auth", "auth-2", "auth-3",
-    "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern", "error",
+    "dashboard", "dashboards",
+    "pages",
+    "misc",
+    "plugins",
+    "auth", "auth-2", "auth-3", "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern",
+    "error",
+    "sidebar", "topbar", "sidenav",
+    "ui", "base-ui",
+    "form", "forms",
+    "apex", "echart", "chartjs",
+    "datatables",
+    "icon", "icons",
+    "map", "maps",
 }
 
 # PHP
 PHP_EXTENSION = '.php'
-
 PHP_ASSETS_PATH = "src/assets"
 PHP_PARTIALS_PATH = "src/partials"
 
@@ -94,13 +113,20 @@ PHP_VARIABLE_REPLACEMENT = r'<?php echo ($\1); ?>'
 LARAVEL_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/laravel-boilerplate.git', '.']
 LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = ['git', 'clone',
                                               'https://github.com/transpilex/laravel-boilerplate-with-auth.git', '.']
-
 LARAVEL_EXTENSION = ".blade.php"
 LARAVEL_ASSETS_PATH = "resources"
 LARAVEL_PARTIALS_PATH = "resources/views/partials"
 LARAVEL_RESOURCES_PRESERVE = ["views"]
 
 LARAVEL_VARIABLE_REPLACEMENT = r'{{ $\1 }}'
+
+# Django
+DJANGO_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-django.git"
+DJANGO_EXTENSION = ".html"
+DJANGO_ASSETS_PATH = "static"
+DJANGO_PARTIALS_PATH = "templates/partials"
+
+DJANGO_VARIABLE_REPLACEMENT = r'{{ \1 }}'
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",
@@ -110,9 +136,3 @@ LOG_COLORS = {
     "RESET": "\033[0m",
     "GRAY": "\033[38;5;244m"
 }
-
-EXTRA_FILES = [
-    "bun.lock",
-    "yarn.lock",
-    "package-lock.json"
-]

@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup, NavigableString
 from transpilex.config.base import LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND, \
     LARAVEL_PROJECT_CREATION_COMMAND, LARAVEL_RESOURCES_PRESERVE
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_assets, copy_public_only_assets, clean_relative_asset_paths
+from transpilex.utils.assets import copy_assets, copy_public_only_assets
 from transpilex.utils.file import move_files, copy_items
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.logs import Log
@@ -28,7 +28,7 @@ class LaravelConverter:
         self.project_shared_path = Path(self.config.project_root_path / "resources" / "views" / "shared")
         self.project_public_path = Path(self.config.project_root_path / "public")
         self.project_vite_path = Path(self.config.project_root_path / "vite.config.js")
-        self.vite_inputs = {}
+        self.vite_inputs = set()
 
         self.create_project()
 
@@ -78,6 +78,159 @@ class LaravelConverter:
         self._generate_routes(self.project_views_path, self.config.project_root_path / "routes" / "web.php")
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
+
+    def _convert(self, folder_path: Path):
+        """Convert files inside Laravel views directory."""
+        count = 0
+
+        for file in folder_path.rglob(f"*{self.config.file_extension}"):
+            if not file.is_file():
+                continue
+
+            try:
+                original_content = file.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+
+            layout_title = ""
+            # normalize &gt; back to >
+            title_scan_source = original_content.replace("&gt;", ">")
+
+            for label, pattern in self.config.import_patterns.items():
+                # allow both {{> ...}} and {{&gt; ...}}
+                alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+                for m in alt_pattern.finditer(title_scan_source):
+                    # ex: "title-meta", "title-meta.html", "app-meta-title", etc.
+                    inc_name = Path(m.group("path")).stem.lower()
+
+                    if "title-meta" in inc_name or "app-meta-title" in inc_name:
+                        meta = self._parse_include_params(m.groupdict().get("params", "") or "")
+                        layout_title = meta.get("title") or meta.get("pageTitle") or ""
+                        break
+                if layout_title:
+                    break
+
+            escaped_title = layout_title.replace("'", "\\'")
+
+            placeholder_map = {}
+
+            def _protect_handlebars(mm):
+                key = f"__HB_{len(placeholder_map)}__"
+                placeholder_map[key] = mm.group(0)
+                return key
+
+            protected_content = re.sub(r"\{\{[^{]+\}\}", _protect_handlebars, original_content)
+
+            soup = BeautifulSoup(protected_content, "html.parser")
+            is_partial = "partials" in file.parts or "shared" in file.parts
+
+            if is_partial:
+                # convert <script src="..."> to @vite in partials
+                for script_tag in soup.find_all("script"):
+                    src = script_tag.get("src")
+                    if not src:
+                        continue
+                    normalized = re.sub(r"^(?:\./|\.\./)*", "", src)
+                    if normalized.startswith(("assets/js/", "js/", "scripts/")) and not normalized.startswith(
+                            ("assets/js/vendor/", "assets/js/libs/", "assets/js/plugins/")
+                    ):
+                        transformed = re.sub(r"^assets/", "resources/", normalized, 1)
+                        vite_line = f"@vite(['{transformed}'])"
+                        script_tag.replace_with(NavigableString(vite_line))
+                        self.vite_inputs.add(transformed)
+
+                out = str(soup)
+
+                # restore original {{ ... }} blocks
+                for key, original in placeholder_map.items():
+                    out = out.replace(key, original)
+
+                out = self._replace_all_includes_with_blade(out)
+                out = self._replace_asset_image_paths(out)
+                out = self._replace_anchor_links_with_routes(out, self.route_map)
+                out = re.sub(r'(@yield\(.*?\))=""', r'\1', out)
+                file.write_text(out, encoding="utf-8")
+
+                Log.converted(f"{file}")
+                count += 1
+                continue
+
+            # collect <link> tags
+            links_html = "\n".join(f"    {str(tag)}" for tag in soup.find_all("link"))
+            for tag in soup.find_all("link"):
+                tag.decompose()
+
+            # collect <script> tags -> @vite where applicable
+            scripts_html_list = []
+            for script_tag in soup.find_all("script"):
+                src = script_tag.get("src")
+                if not src:
+                    continue
+                normalized = re.sub(r"^(?:\./|\.\./)*", "", src)
+                if normalized.startswith(("assets/js/", "js/", "scripts/")) and not normalized.startswith(
+                        ("assets/js/vendor/", "assets/js/libs/", "assets/js/plugins/")
+                ):
+                    transformed = re.sub(r"^assets/", "resources/", normalized, 1)
+                    vite_line = f"@vite(['{transformed}'])"
+                    scripts_html_list.append(f"    {vite_line}")
+                    self.vite_inputs.add(transformed)
+                else:
+                    scripts_html_list.append(f"    {str(script_tag)}")
+                script_tag.decompose()
+
+            scripts_output = "\n".join(scripts_html_list)
+
+            # find main content region
+            content_div = soup.find(attrs={"data-content": True})
+            if content_div:
+                body_html = content_div.decode_contents()
+                layout_target = "shared.vertical"
+            elif soup.body:
+                body_html = soup.body.decode_contents()
+                layout_target = "shared.base"
+            else:
+                body_html = str(soup)
+                layout_target = "shared.base"
+
+            # restore {{ ... }} in body_html
+            for key, original in placeholder_map.items():
+                body_html = body_html.replace(key, original)
+
+            main_content = self._replace_all_includes_with_blade(body_html).strip()
+
+            # finally choose extends line
+            if layout_title:
+                extends_line = f"@extends('{layout_target}', ['title' => '{escaped_title}'])"
+            else:
+                extends_line = f"@extends('{layout_target}')"
+
+            html_attr_section = self._extract_html_data_attributes(original_content)
+
+            blade_output = f"""{extends_line}
+
+{html_attr_section}
+
+@section('styles')
+{links_html}
+@endsection
+
+@section('content')
+{main_content}
+@endsection
+
+@section('scripts')
+{scripts_output}
+@endsection
+        """
+
+            final = self._replace_asset_image_paths(blade_output)
+            final = self._replace_anchor_links_with_routes(final, self.route_map)
+            file.write_text(final.strip() + "\n", encoding="utf-8")
+
+            Log.converted(f"{file}")
+            count += 1
+
+        Log.info(f"{count} files converted in {folder_path}")
 
     def _parse_include_params(self, raw: str):
         """Parse JSON, PHP array, Blade array, or key="value" Handlebars-style params."""
@@ -220,159 +373,6 @@ class LaravelConverter:
 
         return content
 
-    def _convert(self, folder_path: Path):
-        """Convert files inside Laravel views directory."""
-        count = 0
-
-        for file in folder_path.rglob(f"*{self.config.file_extension}"):
-            if not file.is_file():
-                continue
-
-            try:
-                original_content = file.read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
-                continue
-
-            layout_title = ""
-            # normalize &gt; back to >
-            title_scan_source = original_content.replace("&gt;", ">")
-
-            for label, pattern in self.config.import_patterns.items():
-                # allow both {{> ...}} and {{&gt; ...}}
-                alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
-                for m in alt_pattern.finditer(title_scan_source):
-                    # ex: "title-meta", "title-meta.html", "app-meta-title", etc.
-                    inc_name = Path(m.group("path")).stem.lower()
-
-                    if "title-meta" in inc_name or "app-meta-title" in inc_name:
-                        meta = self._parse_include_params(m.groupdict().get("params", "") or "")
-                        layout_title = meta.get("title") or meta.get("pageTitle") or ""
-                        break
-                if layout_title:
-                    break
-
-            escaped_title = layout_title.replace("'", "\\'")
-
-            placeholder_map = {}
-
-            def _protect_handlebars(mm):
-                key = f"__HB_{len(placeholder_map)}__"
-                placeholder_map[key] = mm.group(0)
-                return key
-
-            protected_content = re.sub(r"\{\{[^{]+\}\}", _protect_handlebars, original_content)
-
-            soup = BeautifulSoup(protected_content, "html.parser")
-            is_partial = "partials" in file.parts or "shared" in file.parts
-
-            if is_partial:
-                # convert <script src="..."> to @vite in partials
-                for script_tag in soup.find_all("script"):
-                    src = script_tag.get("src")
-                    if not src:
-                        continue
-                    normalized = re.sub(r"^(?:\./|\.\./)*", "", src)
-                    if normalized.startswith(("assets/js/", "js/", "scripts/")) and not normalized.startswith(
-                            ("assets/js/vendor/", "assets/js/libs/", "assets/js/plugins/")
-                    ):
-                        transformed = re.sub(r"^assets/", "resources/", normalized, 1)
-                        vite_line = f"@vite(['{transformed}'])"
-                        script_tag.replace_with(NavigableString(vite_line))
-                        self.vite_inputs.add(transformed)
-
-                out = str(soup)
-
-                # restore original {{ ... }} blocks
-                for key, original in placeholder_map.items():
-                    out = out.replace(key, original)
-
-                out = self._replace_all_includes_with_blade(out)
-                out = clean_relative_asset_paths(out)
-                out = self._replace_anchor_links_with_routes(out, self.route_map)
-                out = re.sub(r'(@yield\(.*?\))=""', r'\1', out)
-                file.write_text(out, encoding="utf-8")
-
-                Log.converted(f"{file}")
-                count += 1
-                continue
-
-            # collect <link> tags
-            links_html = "\n".join(f"    {str(tag)}" for tag in soup.find_all("link"))
-            for tag in soup.find_all("link"):
-                tag.decompose()
-
-            # collect <script> tags -> @vite where applicable
-            scripts_html_list = []
-            for script_tag in soup.find_all("script"):
-                src = script_tag.get("src")
-                if not src:
-                    continue
-                normalized = re.sub(r"^(?:\./|\.\./)*", "", src)
-                if normalized.startswith(("assets/js/", "js/", "scripts/")) and not normalized.startswith(
-                        ("assets/js/vendor/", "assets/js/libs/", "assets/js/plugins/")
-                ):
-                    transformed = re.sub(r"^assets/", "resources/", normalized, 1)
-                    vite_line = f"@vite(['{transformed}'])"
-                    scripts_html_list.append(f"    {vite_line}")
-                    self.vite_inputs.add(transformed)
-                else:
-                    scripts_html_list.append(f"    {str(script_tag)}")
-                script_tag.decompose()
-
-            scripts_output = "\n".join(scripts_html_list)
-
-            # find main content region
-            content_div = soup.find(attrs={"data-content": True})
-            if content_div:
-                body_html = content_div.decode_contents()
-                layout_target = "shared.vertical"
-            elif soup.body:
-                body_html = soup.body.decode_contents()
-                layout_target = "shared.base"
-            else:
-                body_html = str(soup)
-                layout_target = "shared.base"
-
-            # restore {{ ... }} in body_html
-            for key, original in placeholder_map.items():
-                body_html = body_html.replace(key, original)
-
-            main_content = self._replace_all_includes_with_blade(body_html).strip()
-
-            # finally choose extends line
-            if layout_title:
-                extends_line = f"@extends('{layout_target}', ['title' => '{escaped_title}'])"
-            else:
-                extends_line = f"@extends('{layout_target}')"
-
-            html_attr_section = self._extract_html_data_attributes(original_content)
-
-            blade_output = f"""{extends_line}
-            
-{html_attr_section}
-
-@section('styles')
-{links_html}
-@endsection
-
-@section('content')
-{main_content}
-@endsection
-
-@section('scripts')
-{scripts_output}
-@endsection
-    """
-
-            final = clean_relative_asset_paths(blade_output)
-            final = self._replace_anchor_links_with_routes(final, self.route_map)
-            file.write_text(final.strip() + "\n", encoding="utf-8")
-
-            Log.converted(f"{file}")
-            count += 1
-
-        Log.info(f"{count} files converted in {folder_path}")
-
     def _update_vite_config(self):
         """
         Always recreate vite.config.js with the current inputs.
@@ -497,3 +497,52 @@ export default defineConfig({{
 
         attrs_str = " ".join(attrs)
         return f"@section('html_attribute')\n{attrs_str}\n@endsection"
+
+    def _replace_asset_image_paths(self, content: str) -> str:
+        """
+        Convert static asset paths like ./assets/... or ../assets/... in:
+          - <img src="...">
+          - <link href="...">
+          - background-image: url(...)
+        to Laravel Blade {{ asset('...') }} syntax.
+        """
+
+        # Pattern for <img src="...">
+        img_pattern = re.compile(
+            r'src\s*=\s*["\'](?:\.{0,2}/)?assets/(?P<path>[^"\']+)["\']',
+            flags=re.IGNORECASE
+        )
+
+        # Pattern for <link href="...">
+        link_pattern = re.compile(
+            r'href\s*=\s*["\'](?:\.{0,2}/)?assets/(?P<path>[^"\']+)["\']',
+            flags=re.IGNORECASE
+        )
+
+        # Pattern for CSS background-image: url(...)
+        css_pattern = re.compile(
+            r'url\((["\']?)(?:\.{0,2}/)?assets/(?P<path>[^)\'"]+)\1\)',
+            flags=re.IGNORECASE
+        )
+
+        # Replace in <img src="...">
+        def repl_img(match):
+            img_path = match.group("path").lstrip("/")
+            return f'src="{{{{ asset(\'{img_path}\') }}}}"'
+
+        # Replace in <link href="...">
+        def repl_link(match):
+            link_path = match.group("path").lstrip("/")
+            return f'href="{{{{ asset(\'{link_path}\') }}}}"'
+
+        # Replace in CSS url(...)
+        def repl_css(match):
+            css_path = match.group("path").lstrip("/")
+            return f'url({{{{ asset(\'{css_path}\') }}}})'
+
+        # Apply all replacements
+        content = img_pattern.sub(repl_img, content)
+        content = link_pattern.sub(repl_link, content)
+        content = css_pattern.sub(repl_css, content)
+
+        return content

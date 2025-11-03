@@ -41,12 +41,12 @@ def update_package_json(
     tailwind = config.ui_library == "tailwind"
 
     # pick default dev deps based on pipeline + ui_library
-    if config.frontend_pipeline == "gulp":
-        default_dev_deps = GULP_TW_DEV_DEPENDENCIES if tailwind else GULP_DEV_DEPENDENCIES
-    elif config.frontend_pipeline == "vite":
-        default_dev_deps = VITE_TW_DEV_DEPENDENCIES if tailwind else VITE_DEV_DEPENDENCIES
-    else:
-        default_dev_deps = {}
+    # if config.frontend_pipeline == "gulp":
+    #     default_dev_deps = GULP_TW_DEV_DEPENDENCIES if tailwind else GULP_DEV_DEPENDENCIES
+    # elif config.frontend_pipeline == "vite":
+    #     default_dev_deps = VITE_TW_DEV_DEPENDENCIES if tailwind else VITE_DEV_DEPENDENCIES
+    # else:
+    default_dev_deps = {}
 
     deps = deps or {}
     dev_deps = dev_deps if dev_deps is not None else default_dev_deps
