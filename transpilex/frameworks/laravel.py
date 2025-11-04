@@ -1,6 +1,5 @@
 import re
 import json
-import shutil
 import html
 import subprocess
 from pathlib import Path
@@ -21,7 +20,6 @@ from transpilex.utils.restructure import restructure_and_copy_files
 class LaravelConverter:
     def __init__(self, config: ProjectConfig):
 
-        self.route_map = None
         self.config = config
 
         self.project_views_path = Path(self.config.project_root_path / "resources" / "views")
@@ -29,6 +27,7 @@ class LaravelConverter:
         self.project_public_path = Path(self.config.project_root_path / "public")
         self.project_vite_path = Path(self.config.project_root_path / "vite.config.js")
         self.vite_inputs = set()
+        self.route_map = None
 
         self.create_project()
 
@@ -53,7 +52,7 @@ class LaravelConverter:
             return
 
         self.route_map = restructure_and_copy_files(
-            self.config.pages_path,
+            self.config,
             self.project_views_path,
             self.config.file_extension
         )

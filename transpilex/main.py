@@ -1,9 +1,8 @@
-import questionary
-from questionary import Style
 from pathlib import Path
 
 from transpilex.cli.prompts import ask_project_config
 from transpilex.config.project import ProjectConfig
+from transpilex.frameworks.core import CoreConverter
 from transpilex.frameworks.django import DjangoConvertor
 from transpilex.frameworks.laravel import LaravelConverter
 from transpilex.frameworks.php import PHPConvertor
@@ -42,3 +41,5 @@ def main():
         LaravelConverter(config)
     elif project_config["framework"] == "django":
         DjangoConvertor(config)
+    elif project_config["framework"] == "core":
+        CoreConverter(config)

@@ -1,15 +1,10 @@
+import re
 import os
 import shutil
 from pathlib import Path
 
 from transpilex.config.base import FOLDERS, NO_NESTING_FOLDERS
-from transpilex.utils.logs import Log
-
-import os
-import shutil
-from pathlib import Path
-
-from transpilex.config.base import FOLDERS, NO_NESTING_FOLDERS
+from transpilex.config.project import ProjectConfig
 from transpilex.utils.logs import Log
 
 
@@ -102,24 +97,76 @@ def _get_restructured_path(src_file: Path, src_root: Path, dest_root: Path) -> P
     return Path(dest_root, existing_parent, *folder_parts, file)
 
 
-def restructure_and_copy_files(src_path: Path, dest_path: Path, extension: str = None):
+def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension: str = None,
+                               case_style: str = "kebab"):
     """
     Recursively copies all HTML files from src_path to dest_path using your restructure logic,
+    optionally changing file/folder naming convention to kebab-case or PascalCase,
     and returns a mapping of ORIGINAL html filenames -> NEW route path.
+
+    Args:
+        config: ProjectConfig object.
+        dest_path (Path): Destination directory path.
+        extension (str, optional): Extension for copied files.
+        case_style (str, optional): Naming style for files and folders ("kebab" or "pascal").
+                                   Defaults to "kebab".
     """
 
-    if not src_path.is_dir():
-        Log.error(f"Source path is not a valid directory: {src_path}")
+    def _to_kebab(s: str) -> str:
+        s = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', s)
+        return re.sub(r'[\s_]+', '-', s).lower()
+
+    def _to_pascal(s: str) -> str:
+        parts = re.split(r'[-_\s]+', s)
+        return ''.join(word.capitalize() for word in parts if word)
+
+    def _apply_case_style(path: Path) -> Path:
+        """
+        Apply casing (kebab/pascal) to subfolders and filenames,
+        but preserve the original casing of the project root path (e.g., core/Inspinia).
+        """
+        # Extract the base root parts (e.g. ['core', 'Inspinia'])
+        root_parts = Path(config.project_root_path).parts if config else []
+        root_len = len(root_parts)
+
+        parts = []
+        for i, part in enumerate(path.parts):
+            # Preserve original root path casing (e.g. core/Inspinia)
+            if i < root_len:
+                # Use same exact casing from root_parts
+                if i < len(root_parts):
+                    parts.append(root_parts[i])
+                else:
+                    parts.append(part)
+                continue
+
+            # Split file name and extension
+            stem, ext = (part, "") if "." not in part else part.rsplit(".", 1)
+
+            # Apply case style
+            if case_style == "pascal":
+                new_stem = _to_pascal(stem)
+            else:
+                new_stem = _to_kebab(stem)
+
+            parts.append(f"{new_stem}.{ext}" if ext else new_stem)
+
+        return Path(*parts)
+
+    if not config.pages_path.is_dir():
+        Log.error(f"Source path is not a valid directory: {config.pages_path}")
         return {}
 
     copied_count = 0
     route_map: dict[str, str] = {}
 
-    for src_file in src_path.rglob("*.html"):
+    for src_file in config.pages_path.rglob("*.html"):
         if not src_file.is_file():
             continue
 
-        dest_file = _get_restructured_path(src_file, src_path, dest_path)
+        # Apply restructure logic (as before)
+        dest_file = _get_restructured_path(src_file, config.pages_path, dest_path)
+        dest_file = _apply_case_style(dest_file)
 
         if extension:
             dest_file = dest_file.with_suffix(extension if extension.startswith('.') else f".{extension}")
@@ -129,13 +176,18 @@ def restructure_and_copy_files(src_path: Path, dest_path: Path, extension: str =
             shutil.copy2(src_file, dest_file)
             copied_count += 1
 
-            # Build URL route from dest_file structure
-            #    - Take the path relative to dest_path
-            rel_dest = dest_file.relative_to(dest_path)
-            no_ext = rel_dest.with_suffix("")
-            route_stem = no_ext.as_posix().removesuffix(".blade")
+            # Route mapping
+            # Always kebab-case in URLs, regardless of file/folder case
+            try:
+                rel_dest = dest_file.relative_to(dest_path)
+            except ValueError:
+                # Fallback for case mismatches (normalize case)
+                rel_dest = Path(
+                    str(dest_file).lower().replace(str(dest_path).lower(), "", 1).lstrip("/\\")
+                )
 
-            #    - Prepend "/"
+            no_ext = rel_dest.with_suffix("")
+            route_stem = _to_kebab(no_ext.as_posix().removesuffix(".blade"))
             route_path = "/" + route_stem.lstrip("/")
 
             route_map[src_file.name] = route_path

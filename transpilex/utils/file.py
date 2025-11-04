@@ -74,36 +74,31 @@ def copy_items(
         destination_path: Union[str, Path],
         clean_destination: bool = False,
         preserve: Optional[List[str]] = None,
+        copy_mode: str = "self",  # NEW: "self" or "contents"
 ):
     """
     Copies one or more files or directories to a destination path.
 
-    This function is a generic utility for copying assets. It can handle a single
-    source item (file or directory) or a list of them. It also provides an
-    option to clean the destination directory before copying, while preserving
-    specified items.
-
     Args:
         source_paths: A single path (str or Path) or a list of paths to be copied.
-        destination_path: The path (str or Path) to the destination. If copying a
-                          single file, this can be a new filename. Otherwise, it
-                          must be a directory.
-        clean_destination: If True, the destination directory will be cleared
-                           before copying, except for items in `preserve`. This
-                           option only applies when the destination is a directory.
-        preserve: A list of filenames or directory names to keep in the
-                  destination directory if `clean_destination` is True.
+        destination_path: Path (str or Path) to the destination. If copying a single
+                          file, this can be a new filename. Otherwise, it must be a directory.
+        clean_destination: If True, clears the destination directory before copying,
+                           except for items in `preserve`. Applies only when destination is a directory.
+        preserve: Filenames or directory names to keep in destination if cleaning.
+        copy_mode: Defines folder copy behavior.
+                   - "self" → copy the source folder itself into destination (default)
+                   - "contents" → copy only the contents of the source folder
     """
-    # Normalize paths
     destination = Path(destination_path)
     if not isinstance(source_paths, list):
         source_paths = [source_paths]
     sources = [Path(p) for p in source_paths]
 
-    # Determine if destination is a directory and prepare it
+    # Determine if destination is a directory
     is_dest_dir = len(sources) > 1 or destination.is_dir()
 
-    # If the destination is a directory, create it and handle cleaning.
+    # Prepare destination directory
     if is_dest_dir:
         destination.mkdir(parents=True, exist_ok=True)
         if clean_destination:
@@ -131,21 +126,35 @@ def copy_items(
             Log.warning(f"Source not found and was skipped: {source}")
             continue
 
-        # If destination is a directory, the target is inside it.
-        # Otherwise, the target is the destination path itself (for single-item copies).
         target = destination / source.name if is_dest_dir else destination
-
-        # For single file copies, ensure the parent directory exists.
         if not is_dest_dir:
             target.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             if source.is_dir():
-                shutil.copytree(source, target, dirs_exist_ok=True)
-                Log.copied(f"{source.name} -> {target}")
+                if copy_mode == "contents":
+                    # Copy contents of source folder, not the folder itself
+                    for item in source.iterdir():
+                        sub_target = destination / item.name if is_dest_dir else target / item.name
+                        if item.is_dir():
+                            shutil.copytree(item, sub_target, dirs_exist_ok=True)
+                        else:
+                            sub_target.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(item, sub_target)
+
+                        try:
+                            src_rel = item.relative_to(Path.cwd())
+                        except ValueError:
+                            src_rel = item.name
+
+                        Log.copied(f"{src_rel} → {target}")
+                else:
+                    # Default: copy the source folder itself
+                    shutil.copytree(source, target, dirs_exist_ok=True)
+                    Log.copied(f"{source} -> {target}")
             elif source.is_file():
                 shutil.copy2(source, target)
-                Log.copied(f"{source.name} -> {target}")
+                Log.copied(f"{source} -> {target}")
         except Exception as e:
             Log.error(f"Failed to copy {source.name} to {target}: {e}")
 
@@ -226,3 +235,52 @@ def empty_folder_contents(folder_path: Path, skip=None):
 
     if not any(folder_path.iterdir()):
         folder_path.rmdir()
+
+
+def rename_item(
+        source: Union[str, Path],
+        new_name: str,
+        overwrite: bool = False
+) -> Optional[Path]:
+    """
+    Renames a file or directory safely.
+
+    Args:
+        source: Path to the file or directory to rename.
+        new_name: The new name (not full path — just the filename or directory name).
+        overwrite: If True, overwrites an existing file or directory with the same name.
+
+    Returns:
+        Path to the renamed item, or None if operation failed.
+    """
+    source_path = Path(source)
+    if not source_path.exists():
+        Log.error(f"Cannot rename: '{source_path}' does not exist.")
+        return None
+
+    # Build target path (in same parent directory)
+    target_path = source_path.parent / new_name
+
+    # Prevent overwriting unless explicitly allowed
+    if target_path.exists():
+        if not overwrite:
+            Log.warning(f"Target '{target_path}' already exists.")
+            return None
+        else:
+            # Remove the existing destination before renaming
+            try:
+                if target_path.is_dir():
+                    shutil.rmtree(target_path)
+                else:
+                    target_path.unlink()
+                Log.removed(f"Existing '{target_path}' removed for overwrite.")
+            except Exception as e:
+                Log.error(f"Failed to remove existing '{target_path}': {e}")
+                return None
+
+    try:
+        source_path.rename(target_path)
+        return target_path
+    except Exception as e:
+        Log.error(f"Failed to rename '{source_path}' to '{new_name}': {e}")
+        return None

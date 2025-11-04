@@ -1,4 +1,4 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -89,10 +89,9 @@ NO_NESTING_FOLDERS = {
     "plugins",
     "auth", "auth-2", "auth-3", "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern",
     "error",
-    "sidebar", "topbar", "sidenav",
     "ui", "base-ui",
     "form", "forms",
-    "apex", "echart", "chartjs",
+    "apex",
     "datatables",
     "icon", "icons",
     "map", "maps",
@@ -127,6 +126,19 @@ DJANGO_ASSETS_PATH = "static"
 DJANGO_PARTIALS_PATH = "templates/partials"
 
 DJANGO_VARIABLE_REPLACEMENT = r'{{ \1 }}'
+
+# Dot Net
+SLN_FILE_CREATION_COMMAND = "dotnet new sln -n"
+
+# Core
+CORE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/core-boilerplate.git', '.']
+CORE_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/core-vite-boilerplate.git', '.']
+CORE_EXTENSION = ".cshtml"
+CORE_ADDITIONAL_EXTENSION = ".cshtml.cs"
+CORE_ASSETS_PATH = "wwwroot"
+CORE_VITE_ASSETS_PATH = "Assets"
+CORE_PARTIALS_PATH = "Pages/Shared/Partials"
+CORE_VARIABLE_REPLACEMENT = r'@\1'
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

@@ -9,7 +9,8 @@ from transpilex.config.base import (
     DEFAULT_PIPELINE, PARTIALS_PATH, UI_LIBRARIES, DEFAULT_UI_LIBRARY, PHP_VITE_ASSETS_PATH, PHP_ASSETS_PATH,
     PHP_VITE_PARTIALS_PATH, PHP_PARTIALS_PATH, PHP_VARIABLE_REPLACEMENT, PHP_EXTENSION, PAGES_PATH, LARAVEL_ASSETS_PATH,
     LARAVEL_PARTIALS_PATH, LARAVEL_VARIABLE_REPLACEMENT, LARAVEL_EXTENSION, GULP_PLUGINS_FOLDER, DJANGO_EXTENSION,
-    DJANGO_ASSETS_PATH, DJANGO_PARTIALS_PATH, DJANGO_VARIABLE_REPLACEMENT
+    DJANGO_ASSETS_PATH, DJANGO_PARTIALS_PATH, DJANGO_VARIABLE_REPLACEMENT, CORE_EXTENSION, CORE_ASSETS_PATH,
+    CORE_PARTIALS_PATH, CORE_VARIABLE_REPLACEMENT, CORE_VITE_ASSETS_PATH
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -134,7 +135,7 @@ def ask_project_config():
 
     new_dest_path = Path(
         dest_path) / f"{framework.lower()}-vite" if frontend_pipeline == "Vite" and framework not in VITE_ONLY else f"{framework.lower()}"
-    project_root_path = Path(new_dest_path) / project_name
+    project_root_path = Path(new_dest_path) / project_name.title() if framework in ["Core", "MVC"] else project_name
     if folder_exists(project_root_path):
         Log.error(f"Project already exists at: {project_root_path}")
         return None
@@ -157,7 +158,6 @@ def ask_project_config():
         else:
             project_assets_path = PHP_ASSETS_PATH
             project_partials_path = PHP_PARTIALS_PATH
-
         variable_replacement = PHP_VARIABLE_REPLACEMENT
         file_extension = PHP_EXTENSION
 
@@ -172,6 +172,16 @@ def ask_project_config():
         project_partials_path = Path(project_name) / DJANGO_PARTIALS_PATH
         variable_replacement = DJANGO_VARIABLE_REPLACEMENT
         file_extension = DJANGO_EXTENSION
+
+    elif framework == "core":
+        if frontend_pipeline == "vite":
+            project_assets_path = CORE_VITE_ASSETS_PATH
+        else:
+            project_assets_path = CORE_ASSETS_PATH
+        project_partials_path = CORE_PARTIALS_PATH
+        variable_replacement = CORE_VARIABLE_REPLACEMENT
+        file_extension = CORE_EXTENSION
+
     else:
         project_assets_path = None
         project_partials_path = None

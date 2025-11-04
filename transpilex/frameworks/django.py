@@ -7,6 +7,7 @@ from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_public_only_assets, copy_assets
 from transpilex.utils.file import file_exists, find_files_with_extension, copy_and_change_extension, move_files, \
     copy_items
+from transpilex.utils.gulpfile import has_plugins_config
 from transpilex.utils.logs import Log
 from cookiecutter.main import cookiecutter
 from bs4 import BeautifulSoup, NavigableString
@@ -57,9 +58,11 @@ class BaseDjangoConverter:
 
         if self.config.asset_paths:
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
-            copy_items(Path(self.config.src_path / "public"), self.config.project_assets_path)
+            copy_items(Path(self.config.src_path / "public"), self.config.project_assets_path, copy_mode="contents")
 
         update_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
+
+        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
     def _convert(self):
         """
@@ -175,16 +178,19 @@ class BaseDjangoConverter:
 {links_html}
 {{% endblock styles %}}
 
-{{% block content %}}
+{{% block {'content' if template_name == 'base.html' else 'page_content'} %}}
 {content_section}
-{{% endblock content %}}
+{{% endblock {'content' if template_name == 'base.html' else 'page_content'} %}}
 
 {{% block scripts %}}
 {scripts_html}
 {{% endblock scripts %}}"""
                 final_output = django_template.strip()
             else:
-                final_output = final_content.strip()
+                django_template = f"""{{% load static i18n {'django_vite' if self.config.frontend_pipeline == 'vite' else ''} %}}
+{final_content}
+"""
+                final_output = django_template.strip()
 
             with open(file, "w", encoding="utf-8") as f:
                 f.write(final_output + "\n")
@@ -233,6 +239,12 @@ class BaseDjangoConverter:
             # Normalize path: remove ./ or ../
             clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
             clean_path = Path(clean_path).with_suffix("").as_posix()
+
+            if "/" not in clean_path:
+                clean_path = f"partials/{clean_path}"
+            # Case 3: already under shared (rare edge)
+            elif clean_path.startswith("partials/"):
+                pass  # already correct
 
             # Skip special title includes (handled separately)
             if Path(clean_path).name.lower() in {"title-meta", "app-meta-title"}:
@@ -389,6 +401,8 @@ class DjangoGulpConverter(BaseDjangoConverter):
         Log.project_start(self.config.project_name)
 
         self.init_create_project()
+
+        has_plugins_config(self.config)
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
