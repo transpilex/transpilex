@@ -1,10 +1,10 @@
-import re
 import os
 import shutil
 from pathlib import Path
 
 from transpilex.config.base import FOLDERS, NO_NESTING_FOLDERS
 from transpilex.config.project import ProjectConfig
+from transpilex.utils.casing import apply_casing
 from transpilex.utils.logs import Log
 
 
@@ -112,42 +112,33 @@ def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension
                                    Defaults to "kebab".
     """
 
-    def _to_kebab(s: str) -> str:
-        s = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', s)
-        return re.sub(r'[\s_]+', '-', s).lower()
-
-    def _to_pascal(s: str) -> str:
-        parts = re.split(r'[-_\s]+', s)
-        return ''.join(word.capitalize() for word in parts if word)
-
     def _apply_case_style(path: Path) -> Path:
         """
         Apply casing (kebab/pascal) to subfolders and filenames,
-        but preserve the original casing of the project root path (e.g., core/Inspinia).
+        but preserve the original casing of the project root path (e.g., core/Project).
         """
-        # Extract the base root parts (e.g. ['core', 'Inspinia'])
         root_parts = Path(config.project_root_path).parts if config else []
         root_len = len(root_parts)
 
         parts = []
         for i, part in enumerate(path.parts):
-            # Preserve original root path casing (e.g. core/Inspinia)
-            if i < root_len:
-                # Use same exact casing from root_parts
-                if i < len(root_parts):
-                    parts.append(root_parts[i])
-                else:
-                    parts.append(part)
-                continue
+            # Preserve original root path casing (e.g. core/Project)
+            # if i < root_len:
+            #     # Use same exact casing from root_parts
+            #     if i < len(root_parts):
+            #         parts.append(root_parts[i])
+            #     else:
+            #         parts.append(part)
+            #     continue
 
             # Split file name and extension
             stem, ext = (part, "") if "." not in part else part.rsplit(".", 1)
 
             # Apply case style
             if case_style == "pascal":
-                new_stem = _to_pascal(stem)
+                new_stem = apply_casing(stem, "pascal")
             else:
-                new_stem = _to_kebab(stem)
+                new_stem = apply_casing(stem, "kebab")
 
             parts.append(f"{new_stem}.{ext}" if ext else new_stem)
 
@@ -187,7 +178,7 @@ def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension
                 )
 
             no_ext = rel_dest.with_suffix("")
-            route_stem = _to_kebab(no_ext.as_posix().removesuffix(".blade"))
+            route_stem = apply_casing(no_ext.as_posix().removesuffix(".blade"), "kebab")
             route_path = "/" + route_stem.lstrip("/")
 
             route_map[src_file.name] = route_path

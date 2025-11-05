@@ -1,18 +1,17 @@
 import re
 import ast
 from pathlib import Path
+from cookiecutter.main import cookiecutter
+from bs4 import BeautifulSoup, NavigableString
 
 from transpilex.config.base import DJANGO_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_public_only_assets, copy_assets
+from transpilex.utils.assets import copy_assets
 from transpilex.utils.file import file_exists, find_files_with_extension, copy_and_change_extension, move_files, \
     copy_items
 from transpilex.utils.gulpfile import has_plugins_config
 from transpilex.utils.logs import Log
-from cookiecutter.main import cookiecutter
-from bs4 import BeautifulSoup, NavigableString
-
-from transpilex.utils.package_json import update_package_json
+from transpilex.utils.package_json import  sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 
 
@@ -60,7 +59,7 @@ class BaseDjangoConverter:
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
             copy_items(Path(self.config.src_path / "public"), self.config.project_assets_path, copy_mode="contents")
 
-        update_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 

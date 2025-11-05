@@ -91,8 +91,6 @@ NO_NESTING_FOLDERS = {
     "error",
     "ui", "base-ui",
     "form", "forms",
-    "apex",
-    "datatables",
     "icon", "icons",
     "map", "maps",
 }

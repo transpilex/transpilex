@@ -6,12 +6,16 @@ from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString
 
 from transpilex.config.base import CORE_VITE_PROJECT_CREATION_COMMAND, CORE_PROJECT_CREATION_COMMAND, \
-    SLN_FILE_CREATION_COMMAND
+    SLN_FILE_CREATION_COMMAND, CORE_ADDITIONAL_EXTENSION
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import clean_relative_asset_paths
-from transpilex.utils.file import rename_item, move_files
+from transpilex.utils.assets import clean_relative_asset_paths, copy_public_only_assets, copy_assets, \
+    replace_asset_paths
+from transpilex.utils.casing import apply_casing
+from transpilex.utils.file import rename_item, move_files, copy_items
 from transpilex.utils.git import remove_git_folders
+from transpilex.utils.gulpfile import add_gulpfile
 from transpilex.utils.logs import Log
+from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
 
@@ -21,7 +25,12 @@ class BaseCoreConverter:
         self.config = config
         self.project_name = self.config.project_name.title()
         self.project_pages_path = Path(self.config.project_root_path / "Pages")
-        self.project_shared_path = Path(self.config.project_root_path / self.project_pages_path / "Shared")
+        self.project_shared_path = Path(self.project_pages_path / "Shared")
+        self.project_partials_path = Path(self.project_shared_path / "Partials")
+        self.project_public_path = Path(self.config.project_root_path / "wwwroot")
+
+        self.project_view_import_path = Path(self.project_pages_path / "_ViewImports.cshtml")
+
         self.route_map = None
 
     def init_create_project(self):
@@ -54,6 +63,14 @@ class BaseCoreConverter:
 
             Log.info(".sln file created successfully")
 
+            try:
+                content = self.project_view_import_path.read_text(encoding="utf-8")
+                content = content.replace("PROJECT_NAME", self.project_name)
+                self.project_view_import_path.write_text(content, encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                Log.error("Error changing PROJECT_NAME in _ViewImports.csproj")
+
+
         except subprocess.CalledProcessError:
             Log.error("Core project creation failed")
             return
@@ -65,18 +82,22 @@ class BaseCoreConverter:
             case_style="pascal"
         )
 
-        self._convert(self.project_pages_path)
+        self._convert()
 
         if self.config.partials_path:
-            move_files(self.project_pages_path / "Partials", self.project_shared_path / "Partials")
+            move_files(self.project_pages_path / "Partials", self.project_partials_path)
+            self._normalize_partials_folder(self.project_partials_path)
             replace_variables(self.project_shared_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
+            self._add_viewbag_vars_block()
 
-    def _convert(self, folder_path: Path):
+        self._add_additional_files(skip_paths=['_ViewStart.cshtml', '_ViewImports.cshtml', 'Shared'])
+
+    def _convert(self):
         count = 0
 
-        for file in folder_path.rglob(f"*{self.config.file_extension}"):
-            if not file.is_file():
+        for file in self.project_pages_path.rglob(f"*{self.config.file_extension}"):
+            if not file.is_file() or file.name.startswith("_"):
                 continue
 
             try:
@@ -95,9 +116,19 @@ class BaseCoreConverter:
             protected_content = re.sub(r"\{\{[^{]+\}\}", _protect_handlebars, original_content)
 
             soup = BeautifulSoup(protected_content, "html.parser")
-            is_partial = "Partials" in file.parts or "Shared" in file.parts
 
+            is_partial = "Partials" in file.parts or "Shared" in file.parts
             if is_partial:
+                out = str(soup)
+
+                includes_result = self._replace_all_includes_with_razor(out)
+                out = includes_result["content"]
+                out = clean_relative_asset_paths(out)
+                out = self._replace_anchor_links_with_routes(out, self.route_map)
+                file.write_text(out, encoding="utf-8")
+
+                Log.converted(f"{file}")
+                count += 1
                 continue
 
             # Extract linked resources
@@ -111,28 +142,47 @@ class BaseCoreConverter:
 
             # Extract main content region
             content_block = soup.find(attrs={"data-content": True})
+            layout_target = ''
+
             if content_block:
                 body_html = content_block.decode_contents()
+                layout_target = f'    Layout = "~/Pages/Shared/_VerticalLayout.cshtml";\n'
             elif soup.body:
                 body_html = soup.body.decode_contents()
+                # layout_target = f'    Layout = "~/Pages/Shared/_BaseLayout.cshtml";\n'
             else:
                 body_html = str(soup)
+                # layout_target = f'    Layout = "~/Pages/Shared/_BaseLayout.cshtml";\n'
 
+            # Restore protected handlebars
             for key, val in placeholder_map.items():
                 body_html = body_html.replace(key, val)
 
-            # Replace includes, patterns, and assets
-            body_html = self._replace_all_includes_with_razor(body_html)
+            # --- Replace includes and collect ViewBag blocks ---
+            includes_result = self._replace_all_includes_with_razor(body_html)
+            body_html = includes_result["content"]
+            viewbag_blocks = includes_result["viewbag_blocks"]
+
+            viewbag_blocks.append(layout_target)
+
+            # Clean asset paths
             body_html = clean_relative_asset_paths(body_html)
-            # body_html = self._replace_anchor_links_with_routes(body_html, self.route_map)
 
             # Construct Razor file structure
             route_path = self._get_route_for_file(file)
-            page_name = file.stem
-            model_name = f"{self.config.project_name}.Pages.{page_name}Model"
 
-            final_output = f"""@page "{route_path}"
-@model {model_name}
+            page_name = file.stem
+            folder_parts = file.relative_to(self.project_pages_path).parent.parts
+            model_name = f"{page_name if not page_name.isdigit() else f"{folder_parts[-1]}{page_name}"}Model"
+
+            # Combine all unique ViewBag blocks under @model
+            viewbag_block = "@{\n" + "\n".join(viewbag_blocks) + "\n}".strip()
+            viewbag_section = f"\n{viewbag_block}\n" if viewbag_block else ""
+
+            final = f"""@page "{route_path}"
+@model TEMP_NAMESPACE.{model_name}
+
+{viewbag_section}
 
 @section Styles {{
 {links_html}
@@ -144,15 +194,19 @@ class BaseCoreConverter:
 {scripts_html}
 }}"""
 
-            file.write_text(final_output.strip() + "\n", encoding="utf-8")
+            final = self._replace_anchor_links_with_routes(final, self.route_map)
+            final = clean_relative_asset_paths(final)
+            file.write_text(final.strip() + "\n", encoding="utf-8")
             Log.converted(str(file))
             count += 1
 
-        Log.info(f"{count} files converted in {folder_path}")
+        Log.info(f"{count} files converted in {self.project_pages_path}")
 
-    def _replace_all_includes_with_razor(self, content: str) -> str:
-        """Convert @@include(...) and {{> ...}} to Razor partial syntax."""
+    def _replace_all_includes_with_razor(self, content: str):
+        """Convert @@include(...) and {{> ...}} to Razor partial syntax with ViewBag params and PascalCase filenames."""
         fragments = []
+        viewbag_blocks = []
+
         for label, pattern in self.config.import_patterns.items():
             alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
             for match in alt_pattern.finditer(content):
@@ -170,17 +224,28 @@ class BaseCoreConverter:
 
             # Normalize partial path
             if clean_path.startswith("partials/"):
-                clean_path = clean_path.replace("partials/", "Shared/Partials/", 1)
+                clean_path = clean_path.replace("partials/", "Pages/Shared/Partials/", 1)
             elif "/" not in clean_path:
-                clean_path = f"Shared/Partials/{clean_path}"
+                clean_path = f"Pages/Shared/Partials/{clean_path}"
 
-            # Parse parameters (JSON, key=value, etc.)
+            # Split path into folder + filename, and PascalCase the filename
+            clean_path_obj = Path(clean_path)
+            pascal_filename = '_' + apply_casing(clean_path_obj.stem, "pascal") + clean_path_obj.suffix
+            clean_path = str(clean_path_obj.parent / pascal_filename).replace("\\", "/")
+
+            # Parse parameters
             params = self._parse_include_params(params_raw)
-            args = ", ".join(f'new {{ {k} = "{v}" }}' for k, v in params.items()) if params else ""
-            replacement = f"@await Html.PartialAsync(\"~/{clean_path}.cshtml\"{', ' + args if args else ''})"
+
+            # Build ViewBag assignments
+            if params:
+                lines = [f'    ViewBag.{k} = "{v}";' for k, v in params.items()]
+                viewbag_blocks.append("\n".join(lines))
+
+            # Replace with only partial include (no inline ViewBag)
+            replacement = f"@await Html.PartialAsync(\"~/{clean_path}.cshtml\")"
             content = content.replace(frag["full"], replacement)
 
-        return content
+        return {"content": content, "viewbag_blocks": viewbag_blocks}
 
     def _parse_include_params(self, raw: str):
         """Parse parameters passed into includes (JSON, key=value)."""
@@ -205,16 +270,13 @@ class BaseCoreConverter:
         Match the .cshtml file (Pages/UI/Buttons.cshtml) to its route_map entry using normalized comparison.
         """
 
-        # Normalize the filename stem to kebab-case, matching route_map keys
-        def to_kebab(s):
-            s = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', s)
-            return s.lower().replace("_", "-")
-
-        kebab_stem = to_kebab(file.stem)
+        kebab_stem = apply_casing(file.stem, "kebab")
         possible_html_name = f"{kebab_stem}.html"
 
         # Direct filename match
         if possible_html_name in self.route_map:
+            if self.route_map[possible_html_name] == "/index":
+                return "/"
             return self.route_map[possible_html_name]
 
         # Try partial match
@@ -224,11 +286,196 @@ class BaseCoreConverter:
 
         try:
             relative = file.relative_to(self.project_pages_path)
-            parts = [to_kebab(p) for p in relative.with_suffix("").parts]
+            parts = [apply_casing(p, "kebab") for p in relative.with_suffix("").parts]
             route_guess = "/" + "/".join(parts)
             return route_guess
         except Exception:
             return "/"
+
+    def _add_additional_files(self, extension=CORE_ADDITIONAL_EXTENSION, skip_paths=None):
+        generated_count = 0
+
+        new_extension = extension if extension.startswith(".") else f".{extension}"
+
+        if skip_paths is None:
+            skip_paths = []
+
+        for file in self.project_pages_path.rglob(f"*{self.config.file_extension}"):
+            relative_file_path_str = str(file.relative_to(self.project_pages_path)).replace("\\", "/")
+            if any(skip in relative_file_path_str for skip in skip_paths):
+                continue
+
+            folder_parts = file.relative_to(self.project_pages_path).parent.parts
+            folder_path = file.parent
+            file_name = file.stem
+
+            model_name = f"{file_name if not file_name.isdigit() else f"{folder_parts[-1]}{file_name}"}Model"
+            namespace = f"{self.project_name}.Pages" + (
+                '.' + '.'.join([apply_casing(p, 'pascal') for p in folder_parts]) if folder_parts else "")
+
+            new_file_path = folder_path / f"{file_name}{new_extension}"
+            content = self._set_content(namespace, model_name)
+
+            with open(file, "r+", encoding="utf-8") as f:
+                view = f.read()
+                view = view.replace("TEMP_NAMESPACE", namespace)
+                f.seek(0)
+                f.write(view)
+                f.truncate()
+
+            try:
+                with open(new_file_path, "w", encoding="utf-8") as f:
+                    f.write(content.strip() + "\n")
+                generated_count += 1
+            except IOError as e:
+                Log.error(f"Error writing {new_file_path}: {e}")
+
+        Log.info(f"{generated_count} {new_extension} files generated")
+
+    def _set_content(self, namespace, model_name):
+        return f"""using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace {namespace}
+{{
+    public class {model_name} : PageModel
+    {{
+        public void OnGet() {{ }}
+    }}
+}}"""
+
+    def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]):
+        """
+        Replace <a href="filename.html"> links with route URLs from the route map.
+        """
+
+        pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
+
+        def repl(match):
+            href_val = match.group("href")  # e.g., "auth-lock-screen.html"
+            href_file = Path(href_val).name  # just filename.html
+            if href_file in route_map:
+                route_path = route_map[href_file]  # e.g., "/auth/lock-screen"
+                if route_path == "/index":
+                    return f"href=\"/\""
+                return f"href=\"{route_path}\""
+            return match.group(0)
+
+        return pattern.sub(repl, content)
+
+    def _normalize_partials_folder(self, folder: Path):
+        """
+        In `folder`, ensure every partial:
+          - has PascalCase filename,
+          - starts with '_',
+          - removes unprefixed duplicates when an underscored file exists.
+        """
+        if not folder.exists():
+            return
+
+        for p in list(folder.rglob(f"*{self.config.file_extension}")):
+            if not p.is_file():
+                continue
+
+            name = p.stem
+            suffix = p.suffix
+
+            target_name = f"_{name}{suffix}"
+            target_path = p.with_name(target_name)
+
+            # If target already exists and this is an unprefixed duplicate → delete current
+            if target_path.exists() and p.resolve() != target_path.resolve():
+                # Prefer the underscored PascalCase file; remove the current one
+                try:
+                    p.unlink()
+                except Exception as e:
+                    Log.error(f"Failed to delete duplicate partial {p}: {e}")
+                continue
+
+            # If current path is already the correct target, skip
+            if p.name == target_name:
+                continue
+
+            # Otherwise rename to the normalized target
+            try:
+                p.rename(target_path)
+            except FileExistsError:
+                # Rare race: if created concurrently, keep the underscored PascalCase and remove this one
+                try:
+                    p.unlink()
+                except Exception as e:
+                    Log.error(f"Failed to delete duplicate partial {p}: {e}")
+            except Exception as e:
+                Log.error(f"Failed to normalize partial {p}: {e}")
+
+    def _add_viewbag_vars_block(self):
+
+        for f in self.project_partials_path.rglob(f"*{self.config.file_extension}"):
+            if not f.is_file() or not f.name.startswith("_"):
+                continue
+
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+
+            # Collect variable names used as @var
+            vars_found = set(re.compile(r"(?<!@)(?<![A-Za-z0-9_])@([A-Za-z_][A-Za-z0-9_]*)\b").findall(text))
+            vars_found = {v for v in vars_found if v not in {
+                "page", "model", "section", "functions", "inject", "using", "await",
+                "RenderBody", "RenderSection", "addTagHelper", "removeTagHelper", "inherits"
+            }}
+
+            if not vars_found:
+                continue
+
+            # Build lines we want to ensure exist
+            desired_lines = [f"    var {v} = ViewBag.{v};" for v in sorted(vars_found)]
+
+            # Decide insertion index: after @page/@model block at top
+            lines = text.splitlines()
+            insert_idx = 0
+            for i, line in enumerate(lines[:50]):  # look near top only
+                s = line.strip()
+                if s.startswith("@page") or s.startswith("@model"):
+                    insert_idx = i + 1
+
+            # Check if any of these lines already exist (to avoid duplicates)
+            existing_text_window = "\n".join(lines[: max(0, insert_idx + 30)])
+            missing_lines = [ln for ln in desired_lines if ln.strip() not in existing_text_window]
+
+            if not missing_lines:
+                # Nothing to insert
+                continue
+
+            block = "@{\n" + "\n".join(missing_lines) + "\n}\n"
+
+            # If there’s already a top @{ ... } block right after insert_idx, prefer
+            # inserting our new block right after it (keeps a tidy header area).
+            def find_top_razor_block_end(start_line_idx: int):
+                # Find first "@{" after start_line_idx within first ~30 lines
+                for j in range(start_line_idx, min(len(lines), start_line_idx + 30)):
+                    if lines[j].lstrip().startswith("@{"):
+                        # naive brace balance until matching "}"
+                        balance = 0
+                        started = False
+                        for k in range(j, min(len(lines), j + 500)):
+                            line = lines[k]
+                            # Count braces (very simple; good enough for top metadata block)
+                            balance += line.count("{")
+                            balance -= line.count("}")
+                            if not started:
+                                started = True
+                            if started and balance <= 0:
+                                return k + 1  # insert after closing brace line
+                return None
+
+            after_header_block = find_top_razor_block_end(insert_idx)
+            final_insert_idx = after_header_block if after_header_block is not None else insert_idx
+
+            new_text = "\n".join(lines[:final_insert_idx]) + ("\n" if final_insert_idx else "") + block + "\n".join(
+                lines[final_insert_idx:])
+
+            f.write_text(new_text, encoding="utf-8")
 
 
 class CoreGulpConverter(BaseCoreConverter):
@@ -236,9 +483,33 @@ class CoreGulpConverter(BaseCoreConverter):
         super().__init__(config)
 
     def create_project(self):
-        Log.project_start(self.config.project_name)
+        Log.project_start(self.project_name)
         self.init_create_project()
-        Log.project_end(self.config.project_name, str(self.config.project_root_path))
+
+        if self.config.asset_paths:
+            copy_assets(self.config.asset_paths, self.config.project_assets_path)
+            replace_asset_paths(self.config.project_assets_path, '')
+
+        add_gulpfile(self.config)
+
+        scripts = {
+            "dev": "gulp",
+            "build": "gulp build",
+            "rtl": "gulp rtl",
+            "rtl-build": "gulp rtlBuild"
+        }
+
+        if self.config.ui_library == "tailwind":
+            scripts = {
+                "dev": "gulp",
+                "build": "gulp build"
+            }
+
+        update_package_json(self.config, overrides={"scripts": scripts})
+
+        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+
+        Log.project_end(self.project_name, str(self.config.project_root_path))
 
 
 class CoreViteConverter(BaseCoreConverter):
@@ -246,9 +517,15 @@ class CoreViteConverter(BaseCoreConverter):
         super().__init__(config)
 
     def create_project(self):
-        Log.project_start(self.config.project_name)
+        Log.project_start(self.project_name)
         self.init_create_project()
-        Log.project_end(self.config.project_name, str(self.config.project_root_path))
+
+        if self.config.asset_paths:
+            copy_items(Path(self.config.src_path / "public"), self.project_public_path, copy_mode="contents")
+            public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
+            copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
+
+        Log.project_end(self.project_name, str(self.config.project_root_path))
 
 
 class CoreConverter:

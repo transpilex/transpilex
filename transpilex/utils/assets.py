@@ -12,7 +12,7 @@ def copy_assets(
         destination_folder: Union[str, Path],
         preserve: List[str] | None = None,
         exclude: List[str] | None = None
-) -> None:
+):
     """
     Copy all assets from one or more source folders into a destination folder.
 
@@ -145,7 +145,7 @@ def copy_public_only_assets(
     return sorted(list(copied))
 
 
-def clean_relative_asset_paths(content: str) -> str:
+def clean_relative_asset_paths(content: str):
     """
     Cleans up <script src="...">, <link href="...">, and CSS url(...):
     - Removes leading 'assets/', '../assets/', etc.
@@ -193,3 +193,72 @@ def clean_relative_asset_paths(content: str) -> str:
     )
 
     return content
+
+
+def replace_asset_paths(
+    folders: Union[Path, list[Union[str, Path]]],
+    new_base: str,
+    extensions: list[str] | None = None,
+):
+    """
+    Recursively scans all files in the given folder(s) for asset path patterns like
+    ./assets/... , ../assets/... , /assets/... , or assets/... and replaces them with new_base.
+
+    Args:
+        folders (Path | list[str | Path]): Folder(s) to scan.
+        new_base (str): Replacement base path (e.g. '~/assets/' or '/static/assets/').
+        extensions (list[str], optional): File extensions to include (default: js, css, scss, html, cshtml).
+    """
+
+    # Default extensions if none provided
+    if extensions is None:
+        extensions = [".js", ".css", ".scss", ".ts", ".html", ".cshtml"]
+
+    # Normalize folders into list of Path objects
+    if isinstance(folders, Path):
+        folders = [folders]
+    elif isinstance(folders, list):
+        folders = [Path(f) for f in folders]
+    else:
+        raise TypeError("folders must be a Path or list[str | Path]")
+
+    # Regex pattern: match ./assets/, ../assets/, /assets/, or assets/
+    asset_pattern = re.compile(
+        r'(?<![A-Za-z0-9_])'     # not preceded by identifier chars
+        r'(?:\.{0,2}/)*'         # optional ./ or ../ (any level)
+        r'assets/',              # must contain 'assets/'
+    )
+
+    # Normalize new base path to have exactly one trailing slash
+    new_base = new_base.rstrip("/") + "/"
+
+    total_updated = 0
+
+    for folder in folders:
+        if not folder.exists():
+            print(f"⚠️  Folder not found: {folder}")
+            continue
+
+        updated_files = 0
+
+        for file in folder.rglob("*"):
+            if not file.is_file() or file.suffix.lower() not in extensions:
+                continue
+
+            try:
+                content = file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            # Perform replacement
+            new_content = re.sub(asset_pattern, new_base, content)
+
+            if new_content != content:
+                file.write_text(new_content, encoding="utf-8")
+                updated_files += 1
+                total_updated += 1
+                print(f"✅ Updated: {file}")
+
+        print(f"✨ Folder '{folder}' → {updated_files} file(s) updated.\n")
+
+    print(f"🎯 Total files updated: {total_updated}")
