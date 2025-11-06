@@ -20,7 +20,7 @@ symfony
 node
 django
 flask
-core
+Core
 mvc
 blazor
 ror

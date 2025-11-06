@@ -160,24 +160,7 @@ class PHPGulpConverter(BasePHPConvertor):
 
         add_gulpfile(self.config)
 
-        scripts = {
-            "dev": "gulp",
-            "build": "gulp build",
-            "rtl": "gulp rtl",
-            "rtl-build": "gulp rtlBuild"
-        }
-
-        if self.config.ui_library == "tailwind":
-            scripts = {
-                "dev": "gulp",
-                "build": "gulp build"
-            }
-
-        update_package_json(self.config,
-                            overrides={
-                                "type": "commonjs",
-                                "scripts": scripts
-                            })
+        update_package_json(self.config)
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 

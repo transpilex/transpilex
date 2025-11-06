@@ -48,9 +48,28 @@ def update_package_json(
     else:
         default_dev_deps = {}
 
+    if config.frontend_pipeline == "gulp":
+        if tailwind:
+            scripts = {
+                "dev": "gulp",
+                "build": "gulp build"
+            }
+        else:
+            scripts = {
+                "dev": "gulp",
+                "build": "gulp build",
+                "rtl": "gulp rtl",
+                "rtl-build": "gulp rtlBuild"
+            }
+    else:
+        scripts = {
+            "dev": "vite",
+            "build": "vite build"
+        }
+
     deps = deps or {}
     dev_deps = dev_deps if dev_deps is not None else default_dev_deps
-    overrides = overrides or {}
+    overrides = overrides or {"scripts": scripts}
     ignore = set(ignore or [])
 
     def load_json(path: Path):

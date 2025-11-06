@@ -51,12 +51,13 @@ GULP_TW_DEV_DEPENDENCIES = {
 }
 
 VITE_DEV_DEPENDENCIES = {
-    "sass": "1.77.6"
+    "sass": "1.77.6",
+    "vite": "^7.2.1"
 }
 
 VITE_TW_DEV_DEPENDENCIES = {
     "@tailwindcss/vite": "^4.0.7",
-    "tailwindcss": "^4.0.7",
+    "vite": "^7.2.1"
 }
 
 PUBLIC_ONLY_ASSETS = ["images", "img", "media", "data", "json"]

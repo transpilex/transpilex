@@ -196,9 +196,9 @@ def clean_relative_asset_paths(content: str):
 
 
 def replace_asset_paths(
-    folders: Union[Path, list[Union[str, Path]]],
-    new_base: str,
-    extensions: list[str] | None = None,
+        folders: Union[Path, list[Union[str, Path]]],
+        new_base: str,
+        extensions: list[str] | None = None,
 ):
     """
     Recursively scans all files in the given folder(s) for asset path patterns like
@@ -224,22 +224,18 @@ def replace_asset_paths(
 
     # Regex pattern: match ./assets/, ../assets/, /assets/, or assets/
     asset_pattern = re.compile(
-        r'(?<![A-Za-z0-9_])'     # not preceded by identifier chars
-        r'(?:\.{0,2}/)*'         # optional ./ or ../ (any level)
-        r'assets/',              # must contain 'assets/'
+        r'(?<![A-Za-z0-9_])'  # not preceded by identifier chars
+        r'(?:\.{0,2}/)*'  # optional ./ or ../ (any level)
+        r'assets/',  # must contain 'assets/'
     )
 
     # Normalize new base path to have exactly one trailing slash
     new_base = new_base.rstrip("/") + "/"
 
-    total_updated = 0
-
     for folder in folders:
         if not folder.exists():
-            print(f"⚠️  Folder not found: {folder}")
+            Log.warning(f"Folder not found: {folder}")
             continue
-
-        updated_files = 0
 
         for file in folder.rglob("*"):
             if not file.is_file() or file.suffix.lower() not in extensions:
@@ -255,10 +251,3 @@ def replace_asset_paths(
 
             if new_content != content:
                 file.write_text(new_content, encoding="utf-8")
-                updated_files += 1
-                total_updated += 1
-                print(f"✅ Updated: {file}")
-
-        print(f"✨ Folder '{folder}' → {updated_files} file(s) updated.\n")
-
-    print(f"🎯 Total files updated: {total_updated}")

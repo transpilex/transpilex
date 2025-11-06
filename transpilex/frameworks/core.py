@@ -18,6 +18,7 @@ from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
+from transpilex.utils.template import replace_file_with_template
 
 
 class BaseCoreConverter:
@@ -105,17 +106,15 @@ class BaseCoreConverter:
             except (UnicodeDecodeError, OSError):
                 continue
 
-            # --- Protect {{ }} expressions ---
-            placeholder_map = {}
+            includes_result = self._replace_all_includes_with_razor(original_content)
+            original_content = includes_result["content"]
+            viewbag_blocks = includes_result["viewbag_blocks"]
 
-            def _protect_handlebars(m):
-                key = f"__HB_{len(placeholder_map)}__"
-                placeholder_map[key] = m.group(0)
-                return key
+            html_attr_line = self._extract_data_attributes(original_content)
+            if html_attr_line:
+                viewbag_blocks.append(html_attr_line)
 
-            protected_content = re.sub(r"\{\{[^{]+\}\}", _protect_handlebars, original_content)
-
-            soup = BeautifulSoup(protected_content, "html.parser")
+            soup = BeautifulSoup(original_content, "html.parser")
 
             is_partial = "Partials" in file.parts or "Shared" in file.parts
             if is_partial:
@@ -123,7 +122,12 @@ class BaseCoreConverter:
 
                 includes_result = self._replace_all_includes_with_razor(out)
                 out = includes_result["content"]
+
                 out = clean_relative_asset_paths(out)
+
+                if self.config.frontend_pipeline == "vite":
+                    out = self._convert_script_src_for_vite(out)
+
                 out = self._replace_anchor_links_with_routes(out, self.route_map)
                 file.write_text(out, encoding="utf-8")
 
@@ -136,8 +140,22 @@ class BaseCoreConverter:
             for tag in soup.find_all("link"):
                 tag.decompose()
 
-            scripts_html = "\n".join(f"    {str(tag)}" for tag in soup.find_all("script"))
+            scripts_to_move = []
+            script_to_exclude = "document.write(new Date().getFullYear())"
+
             for tag in soup.find_all("script"):
+                # Check if the tag's text content matches the one to exclude
+                if tag.get_text(strip=True) == script_to_exclude:
+                    # If it matches, do nothing. Leave it in the main content.
+                    pass
+                else:
+                    # For ALL other scripts (inline or external), add them to the move list.
+                    scripts_to_move.append(tag)
+
+            scripts_html = "\n    ".join([str(tag) for tag in scripts_to_move])
+
+            tags_to_decompose = scripts_to_move
+            for tag in tags_to_decompose:
                 tag.decompose()
 
             # Extract main content region
@@ -153,15 +171,6 @@ class BaseCoreConverter:
             else:
                 body_html = str(soup)
                 # layout_target = f'    Layout = "~/Pages/Shared/_BaseLayout.cshtml";\n'
-
-            # Restore protected handlebars
-            for key, val in placeholder_map.items():
-                body_html = body_html.replace(key, val)
-
-            # --- Replace includes and collect ViewBag blocks ---
-            includes_result = self._replace_all_includes_with_razor(body_html)
-            body_html = includes_result["content"]
-            viewbag_blocks = includes_result["viewbag_blocks"]
 
             viewbag_blocks.append(layout_target)
 
@@ -193,9 +202,13 @@ class BaseCoreConverter:
 @section Scripts {{
 {scripts_html}
 }}"""
-
+            final = self._convert_script_src_for_vite(final)
             final = self._replace_anchor_links_with_routes(final, self.route_map)
             final = clean_relative_asset_paths(final)
+
+            if self.config.frontend_pipeline == "vite":
+                final = self._convert_script_src_for_vite(final)
+
             file.write_text(final.strip() + "\n", encoding="utf-8")
             Log.converted(str(file))
             count += 1
@@ -203,10 +216,14 @@ class BaseCoreConverter:
         Log.info(f"{count} files converted in {self.project_pages_path}")
 
     def _replace_all_includes_with_razor(self, content: str):
-        """Convert @@include(...) and {{> ...}} to Razor partial syntax with ViewBag params and PascalCase filenames."""
-        fragments = []
-        viewbag_blocks = []
+        """
+        Convert @@include(...) and {{> ...}} to Razor partial syntax with ViewBag params.
+        Uses patterns from import_patterns.json via load_compiled_patterns().
+        """
 
+        fragments = []
+
+        # --- Collect all @@include(...) and {{> ...}} fragments
         for label, pattern in self.config.import_patterns.items():
             alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
             for match in alt_pattern.finditer(content):
@@ -216,36 +233,78 @@ class BaseCoreConverter:
                     "params": match.groupdict().get("params", "")
                 })
 
+        if not fragments:
+            return {"content": content, "viewbag_blocks": []}
+
+        # --- Helper: Parse inline params
+        def _parse_params(raw: str) -> dict:
+            """Parse parameters from JSON-like or key=value formats."""
+            if not raw:
+                return {}
+
+            s = html.unescape(raw.strip())
+
+            # JSON-like object: { title: "Dashboard" }
+            if s.startswith("{") and s.endswith("}"):
+                s = re.sub(r"(?<!\\)\'", '"', s)  # single to double quotes
+                s = re.sub(r"([\{\s,])\s*([A-Za-z_][\w-]*)\s*:", r'\1"\2":', s)
+                s = re.sub(r",\s*([\}\]])", r"\1", s)
+                try:
+                    return json.loads(s)
+                except json.JSONDecodeError:
+                    return {}
+
+            # key="value" pairs (Handlebars-style)
+            kv_pairs = re.findall(r'([A-Za-z_][\w-]*)\s*=\s*["\']([^"\']+)["\']', s)
+            return {k: v for k, v in kv_pairs}
+
+        # --- Process fragments in order
+        new_content = content
+        viewbag_dict = {}
+        found_page_title = False
+
         for frag in fragments:
             path = frag["path"]
             params_raw = frag["params"]
+
             clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
             clean_path = Path(clean_path).with_suffix("").as_posix()
 
-            # Normalize partial path
+            # Normalize to /Pages/Shared/Partials/
             if clean_path.startswith("partials/"):
                 clean_path = clean_path.replace("partials/", "Pages/Shared/Partials/", 1)
             elif "/" not in clean_path:
                 clean_path = f"Pages/Shared/Partials/{clean_path}"
 
-            # Split path into folder + filename, and PascalCase the filename
             clean_path_obj = Path(clean_path)
-            pascal_filename = '_' + apply_casing(clean_path_obj.stem, "pascal") + clean_path_obj.suffix
+            filename_lower = clean_path_obj.stem.lower()
+
+            # PascalCase partial filename with underscore
+            pascal_filename = "_" + apply_casing(clean_path_obj.stem, "pascal") + clean_path_obj.suffix
             clean_path = str(clean_path_obj.parent / pascal_filename).replace("\\", "/")
 
-            # Parse parameters
-            params = self._parse_include_params(params_raw)
+            params = _parse_params(params_raw)
 
-            # Build ViewBag assignments
-            if params:
-                lines = [f'    ViewBag.{k} = "{v}";' for k, v in params.items()]
-                viewbag_blocks.append("\n".join(lines))
+            # --- Priority logic ---
+            if ("page-title" in filename_lower) or ("topbar" in filename_lower):
+                found_page_title = True
+            elif ("title-meta" in filename_lower) and found_page_title:
+                # Remove title-meta if page-title/topbar found
+                new_content = new_content.replace(frag["full"], "")
+                continue
 
-            # Replace with only partial include (no inline ViewBag)
-            replacement = f"@await Html.PartialAsync(\"~/{clean_path}.cshtml\")"
-            content = content.replace(frag["full"], replacement)
+            # --- Update ViewBag (latest wins)
+            for k, v in params.items():
+                viewbag_dict[k] = v
 
-        return {"content": content, "viewbag_blocks": viewbag_blocks}
+            # --- Replace with Razor partial include
+            replacement = f'@await Html.PartialAsync("~/{clean_path}.cshtml")'
+            new_content = new_content.replace(frag["full"], replacement)
+
+        # --- Build ViewBag block
+        viewbag_lines = [f'    ViewBag.{k} = "{v}";' for k, v in viewbag_dict.items()]
+
+        return {"content": new_content, "viewbag_blocks": viewbag_lines}
 
     def _parse_include_params(self, raw: str):
         """Parse parameters passed into includes (JSON, key=value)."""
@@ -267,28 +326,37 @@ class BaseCoreConverter:
 
     def _get_route_for_file(self, file: Path):
         """
-        Match the .cshtml file (Pages/UI/Buttons.cshtml) to its route_map entry using normalized comparison.
+        Match the .cshtml file (Pages/UI/Buttons.cshtml) to its route_map entry
+        using full relative path comparison (normalized and case-insensitive).
         """
 
-        kebab_stem = apply_casing(file.stem, "kebab")
-        possible_html_name = f"{kebab_stem}.html"
-
-        # Direct filename match
-        if possible_html_name in self.route_map:
-            if self.route_map[possible_html_name] == "/index":
-                return "/"
-            return self.route_map[possible_html_name]
-
-        # Try partial match
-        for html_name, route in self.route_map.items():
-            if html_name.startswith(kebab_stem) or kebab_stem in html_name:
-                return route
-
         try:
-            relative = file.relative_to(self.project_pages_path)
-            parts = [apply_casing(p, "kebab") for p in relative.with_suffix("").parts]
-            route_guess = "/" + "/".join(parts)
+            # Compute file path relative to Pages folder (e.g., UI/Buttons.cshtml)
+            rel_path = file.relative_to(self.project_pages_path)
+            rel_html = str(rel_path.with_suffix(".html")).replace("\\", "/")  # UI/Buttons.html
+
+            # Normalize both sides for consistent kebab-case comparison
+            normalized_html = apply_casing(rel_html, "kebab").lower()
+
+            # Direct match in route_map keys (exact structure)
+            for html_name, route in self.route_map.items():
+                html_key = apply_casing(html_name.lower(), "kebab")
+                if normalized_html == html_key or normalized_html.endswith(html_key):
+                    if route == "/index":
+                        return "/"
+                    return route
+
+            # Partial fallback — compare by folder+stem (e.g. ui/buttons)
+            kebab_parts = "/".join([apply_casing(p, "kebab").lower() for p in rel_path.with_suffix("").parts])
+            for html_name, route in self.route_map.items():
+                html_key = apply_casing(html_name.lower(), "kebab")
+                if html_key.endswith(kebab_parts) or kebab_parts.endswith(html_key):
+                    return route
+
+            # Default fallback (no match found)
+            route_guess = "/" + kebab_parts
             return route_guess
+
         except Exception:
             return "/"
 
@@ -477,6 +545,92 @@ namespace {namespace}
 
             f.write_text(new_text, encoding="utf-8")
 
+    def _extract_data_attributes(self, html_content: str):
+        """
+        Extract all data-* attributes (e.g. data-theme, data-layout-width) from <html> or <body>
+        and return them as a ViewBag assignment line.
+        """
+
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+        except Exception:
+            return []
+
+        # Collect data attributes from <html> and <body>
+        data_attrs = {}
+
+        tag = soup.find("html")
+        if tag:
+            for attr, val in tag.attrs.items():
+                if attr.startswith("data-"):
+                    # Handle boolean or None-style attrs
+                    value_str = val if val not in [True, None] else "true"
+                    data_attrs[attr] = str(value_str).strip()
+
+        if not data_attrs:
+            return []
+
+        # Join into HTML attribute syntax
+        joined_attrs = " ".join(f"{k}={v}" for k, v in data_attrs.items())
+        viewbag_line = f'    ViewBag.HTMLAttributes = "{joined_attrs}";'
+
+        return viewbag_line
+
+    def _convert_script_src_for_vite(self, html_content: str):
+        """
+        Convert all relative <script src="..."> paths (./, ../, assets/, js/, scripts/)
+        into Vite-compatible format:
+            <script type="module" vite-src="~/dist/Assets/..."></script>
+
+        Rules:
+        - Handles ../, ./, assets/, js/, scripts/
+        - Ensures `type="module"`
+        - Removes duplicate 'Assets' and '/~'
+        - Skips inline and external URLs
+        """
+
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+        except Exception:
+            return html_content
+
+        for script_tag in soup.find_all("script", src=True):
+            src_val = script_tag["src"].strip()
+
+            # Skip external URLs or already converted scripts
+            if script_tag.has_attr("vite-src") or src_val.startswith(("http://", "https://", "//")):
+                continue
+
+            # --- Normalize path base ---
+            # Remove leading ./ or ../ segments
+            normalized = re.sub(r"^(\.\./|\./)+", "", src_val)
+
+            # Standardize folder names (convert 'scripts/' or 'js/' to 'Assets/js/')
+            # Also normalize all to "Assets/" base
+            if normalized.lower().startswith("assets/"):
+                normalized_path = "Assets/" + normalized[7:]
+            elif normalized.lower().startswith(("js/", "scripts/")):
+                normalized_path = "Assets/" + normalized
+            else:
+                # Fallback for anything else like "plugins/fullcalendar"
+                normalized_path = "Assets/" + normalized
+
+            # Remove duplicated "Assets/Assets/"
+            normalized_path = re.sub(r"(Assets/)+", "Assets/", normalized_path, flags=re.IGNORECASE)
+
+            # Construct Vite path
+            vite_src = f"~/dist/{normalized_path}"
+
+            # Update attributes
+            script_tag["vite-src"] = vite_src
+            script_tag["type"] = "module"
+            del script_tag["src"]
+
+        # Fix BeautifulSoup's unwanted '/~' escaping
+        html_fixed = str(soup).replace("/~", "~")
+
+        return html_fixed
+
 
 class CoreGulpConverter(BaseCoreConverter):
     def __init__(self, config: ProjectConfig):
@@ -492,20 +646,7 @@ class CoreGulpConverter(BaseCoreConverter):
 
         add_gulpfile(self.config)
 
-        scripts = {
-            "dev": "gulp",
-            "build": "gulp build",
-            "rtl": "gulp rtl",
-            "rtl-build": "gulp rtlBuild"
-        }
-
-        if self.config.ui_library == "tailwind":
-            scripts = {
-                "dev": "gulp",
-                "build": "gulp build"
-            }
-
-        update_package_json(self.config, overrides={"scripts": scripts})
+        update_package_json(self.config)
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
@@ -524,6 +665,14 @@ class CoreViteConverter(BaseCoreConverter):
             copy_items(Path(self.config.src_path / "public"), self.project_public_path, copy_mode="contents")
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
+
+        update_package_json(self.config)
+
+        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+
+        if self.config.ui_library == "tailwind":
+            replace_file_with_template(Path(__file__).parent.parent / "templates" / "core-tw-vite.config.js",
+                                       self.config.project_root_path / "vite.config.js")
 
         Log.project_end(self.project_name, str(self.config.project_root_path))
 

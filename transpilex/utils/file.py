@@ -151,10 +151,10 @@ def copy_items(
                 else:
                     # Default: copy the source folder itself
                     shutil.copytree(source, target, dirs_exist_ok=True)
-                    Log.copied(f"{source} -> {target}")
+                    Log.copied(f"{source.name} -> {target}")
             elif source.is_file():
                 shutil.copy2(source, target)
-                Log.copied(f"{source} -> {target}")
+                Log.copied(f"{source.name} -> {target}")
         except Exception as e:
             Log.error(f"Failed to copy {source.name} to {target}: {e}")
 
