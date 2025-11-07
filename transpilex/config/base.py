@@ -1,4 +1,4 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -51,13 +51,11 @@ GULP_TW_DEV_DEPENDENCIES = {
 }
 
 VITE_DEV_DEPENDENCIES = {
-    "sass": "1.77.6",
-    "vite": "^7.2.1"
+    "sass": "1.77.6"
 }
 
 VITE_TW_DEV_DEPENDENCIES = {
-    "@tailwindcss/vite": "^4.0.7",
-    "vite": "^7.2.1"
+    "@tailwindcss/vite": "^4.0.7"
 }
 
 PUBLIC_ONLY_ASSETS = ["images", "img", "media", "data", "json"]
@@ -80,6 +78,8 @@ FOLDERS = {
     "icon", "icons",
     "map", "maps",
     "utilities",
+    "navigation",
+    "landing"
 }
 
 # No further nesting will take place inside these folders
@@ -138,6 +138,14 @@ CORE_ASSETS_PATH = "wwwroot"
 CORE_VITE_ASSETS_PATH = "Assets"
 CORE_PARTIALS_PATH = "Pages/Shared/Partials"
 CORE_VARIABLE_REPLACEMENT = r'@\1'
+
+MVC_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/mvc-boilerplate.git', '.']
+MVC_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/mvc-vite-boilerplate.git', '.']
+MVC_EXTENSION = ".cshtml"
+MVC_ASSETS_PATH = "wwwroot"
+MVC_VITE_ASSETS_PATH = "Assets"
+MVC_PARTIALS_PATH = "Views/Shared/Partials"
+MVC_VARIABLE_REPLACEMENT = r'@\1'
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

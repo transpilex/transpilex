@@ -5,6 +5,7 @@ from transpilex.config.project import ProjectConfig
 from transpilex.frameworks.core import CoreConverter
 from transpilex.frameworks.django import DjangoConvertor
 from transpilex.frameworks.laravel import LaravelConverter
+from transpilex.frameworks.mvc import MVCConverter
 from transpilex.frameworks.php import PHPConvertor
 from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
 
@@ -43,3 +44,5 @@ def main():
         DjangoConvertor(config)
     elif project_config["framework"] == "core":
         CoreConverter(config)
+    elif project_config["framework"] == "mvc":
+        MVCConverter(config)
