@@ -32,7 +32,9 @@ class BaseMVCConverter:
         self.project_partials_path = Path(self.project_shared_path / "Partials")
         self.project_public_path = Path(self.config.project_root_path / "wwwroot")
         self.project_controllers_path = Path(self.config.project_root_path / "Controllers")
+        self.project_index_controller_path = Path(self.project_controllers_path / "IndexController.cs")
         self.project_view_import_path = Path(self.project_views_path / "_ViewImports.cshtml")
+        self.project_model_path = Path(self.config.project_root_path / "Models" / "ErrorViewModel.cs")
 
         self.route_map = None
 
@@ -67,9 +69,16 @@ class BaseMVCConverter:
             Log.info(".sln file created successfully")
 
             try:
-                content = self.project_view_import_path.read_text(encoding="utf-8")
-                content = content.replace("PROJECT_NAME", self.project_name)
-                self.project_view_import_path.write_text(content, encoding="utf-8")
+                files = [self.project_index_controller_path, self.project_view_import_path, self.project_model_path]
+                for file in files:
+                    try:
+                        content = file.read_text(encoding="utf-8")
+                    except (UnicodeDecodeError, OSError):
+                        continue
+                    pass
+                    content = content.replace("PROJECT_NAME", self.project_name)
+                    file.write_text(content, encoding="utf-8")
+
             except (UnicodeDecodeError, OSError):
                 Log.error("Error changing PROJECT_NAME in _ViewImports.csproj")
 
@@ -85,6 +94,8 @@ class BaseMVCConverter:
             case_style="pascal"
         )
 
+        self._create_controllers(ignore_list=['Shared', '_ViewImports.cshtml', '_ViewStart.cshtml', 'Index.cshtml'])
+
         self._convert()
 
         if self.config.partials_path:
@@ -93,8 +104,6 @@ class BaseMVCConverter:
             replace_variables(self.project_shared_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
             self._add_viewbag_vars_block()
-
-        self._create_controllers(ignore_list=['Shared'])
 
     def _convert(self):
         count = 0
@@ -229,7 +238,7 @@ class BaseMVCConverter:
         if not fragments:
             return {"content": content, "viewbag_blocks": []}
 
-        # --- Helper: Parse inline params
+        # Helper: Parse inline params
         def _parse_params(raw: str) -> dict:
             """Parse parameters from JSON-like or key=value formats."""
             if not raw:
@@ -251,7 +260,7 @@ class BaseMVCConverter:
             kv_pairs = re.findall(r'([A-Za-z_][\w-]*)\s*=\s*["\']([^"\']+)["\']', s)
             return {k: v for k, v in kv_pairs}
 
-        # --- Process fragments in order
+        # Process fragments in order
         new_content = content
         viewbag_dict = {}
         found_page_title = False
@@ -278,7 +287,7 @@ class BaseMVCConverter:
 
             params = _parse_params(params_raw)
 
-            # --- Priority logic ---
+            # Priority logic
             if ("page-title" in filename_lower) or ("topbar" in filename_lower):
                 found_page_title = True
             elif ("title-meta" in filename_lower) and found_page_title:
@@ -286,15 +295,15 @@ class BaseMVCConverter:
                 new_content = new_content.replace(frag["full"], "")
                 continue
 
-            # --- Update ViewBag (latest wins)
+            # Update ViewBag (latest wins)
             for k, v in params.items():
                 viewbag_dict[k] = v
 
-            # --- Replace with Razor partial include
+            # Replace with Razor partial include
             replacement = f'@await Html.PartialAsync("~/{clean_path}.cshtml")'
             new_content = new_content.replace(frag["full"], replacement)
 
-        # --- Build ViewBag block
+        # Build ViewBag block
         viewbag_lines = [f'    ViewBag.{k} = "{v}";' for k, v in viewbag_dict.items()]
 
         return {"content": new_content, "viewbag_blocks": viewbag_lines}
@@ -353,24 +362,167 @@ class BaseMVCConverter:
         except Exception:
             return "/"
 
-    def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]):
+    def _replace_anchor_links_with_routes(self, html_content: str, route_map: dict[str, str]):
         """
-        Replace <a href="filename.html"> links with route URLs from the route map.
+        Converts <a href="apps-email-inbox.html"> → <a asp-controller="Email" asp-action="Inbox">
+        Handles:
+        - Special case: index.html → href="/"
+        - Fragment-only hrefs (#section) → untouched (no '/#section')
+        - Proper PascalCase controller/action
+        - Never adds slashes automatically
         """
 
-        pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
+        soup = BeautifulSoup(html_content, "html.parser")
+        changed = False
 
-        def repl(match):
-            href_val = match.group("href")  # e.g., "auth-lock-screen.html"
-            href_file = Path(href_val).name  # just filename.html
-            if href_file in route_map:
-                route_path = route_map[href_file]  # e.g., "/auth/lock-screen"
-                if route_path == "/index":
-                    return f"href=\"/\""
-                return f"href=\"{route_path}\""
-            return match.group(0)
+        for a in soup.find_all("a", href=True):
+            href = a["href"].strip()
 
-        return pattern.sub(repl, content)
+            # leave fragment links untouched (e.g., #invoice)
+            if href.startswith("#"):
+                continue
+
+            # Handle special case for index.html
+            href_clean = href.lstrip("/").lower()
+            if href_clean in ("index.html", "./index.html"):
+                a["href"] = "/"
+                continue
+
+            # Find match from route_map (case-insensitive)
+            key = next(
+                (k for k in route_map.keys() if k.lower().strip("/").endswith(href_clean)),
+                None
+            )
+            if not key:
+                continue
+
+            route = route_map[key].strip("/")
+            parts = [p for p in route.split("/") if p]
+            if len(parts) < 2:
+                continue
+
+            controller, action = parts[-2], parts[-1]
+
+            # PascalCase both names
+            controller = self._to_pascal(controller.split("\\")[-1])
+            action = self._to_pascal(action)
+
+            # Replace href with asp attributes
+            del a["href"]
+            a["asp-controller"] = controller
+            a["asp-action"] = action
+            changed = True
+
+        # Prevent BeautifulSoup from rewriting fragment links as "/#..."
+        html_out = str(soup)
+        html_out = html_out.replace('href="/#', 'href="#')
+
+        return html_out if changed else html_content
+
+    def _create_controllers(self, ignore_list=None):
+        """
+        Recursively generates controller files for all subfolders in Views.
+        - Creates a controller only if the folder directly contains .cshtml files.
+        - Controller name = current folder name (e.g. EcommerceController).
+        - If a file starts with a number or reserved name (like Empty), prefix the folder (e.g. Ecommerce404, EcommerceEmpty).
+        - If the view is inside nested folders (like Views/Apps/Ecommerce), use absolute path: ~/Views/Apps/Ecommerce/ViewName.cshtml
+        - Updates route_map last segment to match action_name.
+        """
+
+        ignore_list = set(ignore_list or [])
+
+        for root, dirs, files in os.walk(self.project_views_path):
+            if any(ig in root for ig in ignore_list):
+                continue
+
+            folder_name = os.path.basename(root)
+            actions: list[tuple[str, str, str]] = []  # (action_name, view_stem, view_path)
+
+            for file in files:
+                if file in ignore_list or not file.endswith(self.config.file_extension):
+                    continue
+
+                view_stem = os.path.splitext(file)[0]
+                action_name = self._make_action_name(folder_name, view_stem)
+
+                # Relative path for View("~/Views/Apps/Ecommerce/Cart.cshtml")
+                rel_path = Path(root).relative_to(self.project_views_path)
+                view_full_path = f"~/Views/{rel_path.as_posix()}/{file}"
+
+                actions.append((action_name, view_stem, view_full_path))
+
+                # --- Update route_map ---
+                if hasattr(self, "route_map") and isinstance(self.route_map, dict):
+                    for key, old_route in list(self.route_map.items()):
+                        route = old_route.strip("/")
+                        parts = [p for p in route.split("/") if p]
+                        if len(parts) >= 2 and parts[-1].lower() == view_stem.lower():
+                            parts[-1] = action_name
+                            self.route_map[key] = "/" + "/".join(parts)
+
+            # Skip folders without .cshtml
+            if not actions:
+                continue
+
+            controller_file_path = os.path.join(
+                self.project_controllers_path, f"{folder_name}Controller.cs"
+            )
+
+            self._create_controller_file_with_views(controller_file_path, folder_name, actions)
+
+    def _to_pascal(self, s: str) -> str:
+        parts = re.split(r"[^A-Za-z0-9]+", s)
+        return "".join(p[:1].upper() + p[1:] for p in parts if p)
+
+    def _make_action_name(self, folder_name: str, file_stem: str) -> str:
+        """
+        Build a valid C# action name from folder + file stem.
+        - If stem starts with a digit or is a reserved word (like Empty), prefix folder.
+        - Sanitize to PascalCase, ensure starts with a letter.
+        """
+        reserved_names = {"empty", "class", "namespace", "controller", "view"}
+
+        needs_prefix = bool(re.match(r"^\d", file_stem)) or file_stem.lower() in reserved_names
+        base = f"{folder_name}{file_stem}" if needs_prefix else file_stem
+
+        pascal = self._to_pascal(base)
+
+        if not pascal or not pascal[0].isalpha():
+            pascal = f"{self._to_pascal(folder_name)}{pascal}"
+
+        return pascal
+
+    def _create_controller_file_with_views(self, path: str, controller_name: str, actions: list[tuple[str, str, str]]):
+        """
+        actions: list of (action_name, view_stem, view_full_path)
+        If nested views exist, use absolute paths (~/Views/.../ViewName.cshtml).
+        """
+        using_statements = "using Microsoft.AspNetCore.Mvc;"
+
+        methods = []
+        for action_name, view_stem, view_path in actions:
+            # Always use absolute path to avoid MVC lookup issues for nested folders
+            body = f'return View("{view_path}");'
+            methods.append(
+                f"""        public IActionResult {action_name}()
+            {{
+                {body}
+            }}
+
+    """
+            )
+
+        controller_class = f"""
+namespace {self.project_name}.Controllers
+{{
+    public class {controller_name}Controller : Controller
+    {{
+{''.join(methods)}    }}
+}}
+        """.strip()
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(using_statements + "\n\n" + controller_class)
 
     def _normalize_partials_folder(self, folder: Path):
         """
@@ -572,57 +724,6 @@ class BaseMVCConverter:
         html_fixed = str(soup).replace("/~", "~")
 
         return html_fixed
-
-    def _create_controllers(self, ignore_list=None):
-        """
-        Generates controller files based on folders and .cshtml files in the views folder.
-        Deletes existing Controllers folder and recreates it.
-
-        :param ignore_list: List of folder or file names to ignore
-        """
-        ignore_list = ignore_list or []
-
-        for folder_name in os.listdir(self.project_views_path):
-            if folder_name in ignore_list:
-                continue
-
-            folder_path = os.path.join(self.project_views_path, folder_name)
-            if not os.path.isdir(folder_path):
-                continue
-
-            actions = []
-            for file in os.listdir(folder_path):
-                if file in ignore_list:
-                    continue
-                if file.endswith(self.config.file_extension):
-                    action_name = os.path.splitext(file)[0]
-                    actions.append(action_name)
-
-            if actions:
-                controller_file_path = os.path.join(self.project_controllers_path, f"{folder_name}Controller.cs")
-                self._create_controller_file(controller_file_path, folder_name, actions)
-                Log.created(controller_file_path)
-
-        Log.info(f"Controller generation completed")
-
-    def _create_controller_file(self, path, controller_name, actions):
-        """Creates a controller file with basic action methods."""
-        using_statements = "using Microsoft.AspNetCore.Mvc;"
-
-        controller_class = f"""
-namespace {self.project_name}.Controllers
-{{
-    public class {controller_name}Controller : Controller
-    {{
-{"".join([f"""        public IActionResult {action}()
-        {{
-            return View();
-        }}\n\n""" for action in actions])}    }}
-}}
-    """.strip()
-
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(using_statements + "\n\n" + controller_class)
 
 
 class MVCGulpConverter(BaseMVCConverter):

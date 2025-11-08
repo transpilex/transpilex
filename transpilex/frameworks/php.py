@@ -113,7 +113,9 @@ class BasePHPConvertor:
                 )
 
                 content = re.sub(
-                    r"""(<script[^>]*src\s*=\s*["'])((?:\.\./|\./|/)?(?:assets/)?)([^"']+\.js[^"']*)""",
+                    r"""(<script[^>]*src\s*=\s*["'])""" 
+                    r"""(?!http:|https:|//|data:)"""
+                    r"""((?:\.\./|\./|/)?(?:assets/)?)([^"']+\.js[^"']*)""",
                     r'\1/src/\3',
                     content,
                     flags=re.IGNORECASE
