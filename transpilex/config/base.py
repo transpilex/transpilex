@@ -1,4 +1,4 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -6,7 +6,7 @@ DEFAULT_PIPELINE = "Gulp"
 UI_LIBRARIES = ["Bootstrap", "Tailwind"]
 DEFAULT_UI_LIBRARY = "Bootstrap"
 
-VITE_ONLY = ["Laravel", "RoR"]
+VITE_ONLY = ["Laravel"]
 
 SOURCE_PATH = "./html"
 PAGES_PATH = f"{SOURCE_PATH}/src"
@@ -139,6 +139,7 @@ CORE_VITE_ASSETS_PATH = "Assets"
 CORE_PARTIALS_PATH = "Pages/Shared/Partials"
 CORE_VARIABLE_REPLACEMENT = r'@\1'
 
+# MVC
 MVC_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/mvc-boilerplate.git', '.']
 MVC_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/mvc-vite-boilerplate.git', '.']
 MVC_EXTENSION = ".cshtml"
@@ -146,6 +147,20 @@ MVC_ASSETS_PATH = "wwwroot"
 MVC_VITE_ASSETS_PATH = "Assets"
 MVC_PARTIALS_PATH = "Views/Shared/Partials"
 MVC_VARIABLE_REPLACEMENT = r'@\1'
+
+# Node
+NODE_EXTENSION = '.ejs'
+NODE_ASSETS_FOLDER = 'public'
+NODE_VARIABLE_REPLACEMENT = r'<%- \1 %>'
+
+# RoR
+ROR_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/ror-boilerplate.git', '.']
+ROR_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/ror-vite-boilerplate.git', '.']
+ROR_EXTENSION = '.html.erb'
+ROR_ASSETS_FOLDER = 'public'
+ROR_VITE_ASSETS_FOLDER = 'frontend'
+ROR_PARTIALS_PATH = "app/views/layouts/partials"
+ROR_VARIABLE_REPLACEMENT = r'<%= \1 %>'
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

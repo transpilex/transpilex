@@ -418,7 +418,7 @@ class DjangoViteConverter(BaseDjangoConverter):
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
-class DjangoConvertor:
+class DjangoConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 

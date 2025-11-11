@@ -6,8 +6,7 @@ import subprocess
 from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString
 
-from transpilex.config.base import CORE_VITE_PROJECT_CREATION_COMMAND, CORE_PROJECT_CREATION_COMMAND, \
-    SLN_FILE_CREATION_COMMAND, CORE_ADDITIONAL_EXTENSION, MVC_VITE_PROJECT_CREATION_COMMAND, \
+from transpilex.config.base import SLN_FILE_CREATION_COMMAND, MVC_VITE_PROJECT_CREATION_COMMAND, \
     MVC_PROJECT_CREATION_COMMAND
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import clean_relative_asset_paths, copy_public_only_assets, copy_assets, \

@@ -114,31 +114,18 @@ def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension
 
     def _apply_case_style(path: Path) -> Path:
         """
-        Apply casing (kebab/pascal) to subfolders and filenames,
-        but preserve the original casing of the project root path (e.g., core/Project).
+        Apply casing (kebab/pascal/snake/camel) to subfolders and filenames,
+        but preserve the original casing of the project root path.
         """
-        root_parts = Path(config.project_root_path).parts if config else []
-        root_len = len(root_parts)
-
         parts = []
         for i, part in enumerate(path.parts):
-            # Preserve original root path casing (e.g. core/Project)
-            # if i < root_len:
-            #     # Use same exact casing from root_parts
-            #     if i < len(root_parts):
-            #         parts.append(root_parts[i])
-            #     else:
-            #         parts.append(part)
-            #     continue
 
-            # Split file name and extension
             stem, ext = (part, "") if "." not in part else part.rsplit(".", 1)
 
-            # Apply case style
-            if case_style == "pascal":
-                new_stem = apply_casing(stem, "pascal")
+            if case_style in ("pascal", "kebab", "snake", "camel"):
+                new_stem = apply_casing(stem, case_style)
             else:
-                new_stem = apply_casing(stem, "kebab")
+                new_stem = apply_casing(stem, "kebab")  # fallback
 
             parts.append(f"{new_stem}.{ext}" if ext else new_stem)
 

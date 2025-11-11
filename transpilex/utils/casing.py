@@ -1,11 +1,16 @@
 import re
 
 
-def apply_casing(s, case_type):
-    if case_type == "kebab":
-        s = re.sub(r'([a-z0-9])([A-Z])', r'\1-\2', s)
-        return re.sub(r'[\s_]+', '-', s).lower()
-    elif case_type == "pascal":
-        parts = re.split(r'[-_\s]+', s)
-        return ''.join(word.capitalize() for word in parts if word)
-    return s
+def apply_casing(text: str, style: str):
+    words = re.split(r'[\s_\-]+', text.strip())
+
+    if style == "kebab":
+        return "-".join(w.lower() for w in words)
+    elif style == "snake":
+        return "_".join(w.lower() for w in words)
+    elif style == "pascal":
+        return "".join(w.capitalize() for w in words)
+    elif style == "camel":
+        return words[0].lower() + "".join(w.capitalize() for w in words[1:])
+    else:
+        return text

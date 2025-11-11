@@ -18,7 +18,7 @@ from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.template import replace_file_with_template
 
 
-class BasePHPConvertor:
+class BasePHPConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
@@ -140,7 +140,7 @@ class BasePHPConvertor:
         Log.info(f"{count} files converted in {folder_path}")
 
 
-class PHPGulpConverter(BasePHPConvertor):
+class PHPGulpConverter(BasePHPConverter):
     def __init__(self, config: ProjectConfig):
         super().__init__(config)
         self.project_src_path = Path(self.config.project_root_path / 'src')
@@ -169,7 +169,7 @@ class PHPGulpConverter(BasePHPConvertor):
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
-class PHPViteConverter(BasePHPConvertor):
+class PHPViteConverter(BasePHPConverter):
     def __init__(self, config: ProjectConfig):
         super().__init__(config)
         self.project_pages_path = Path(self.config.project_root_path / "pages")
@@ -298,7 +298,7 @@ switch ($routeInfo[0]) {{
         Log.info(f"{len(route_lines)} routes generated in {output_file}")
 
 
-class PHPConvertor:
+class PHPConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 

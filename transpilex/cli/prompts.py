@@ -11,7 +11,8 @@ from transpilex.config.base import (
     LARAVEL_PARTIALS_PATH, LARAVEL_VARIABLE_REPLACEMENT, LARAVEL_EXTENSION, GULP_PLUGINS_FOLDER, DJANGO_EXTENSION,
     DJANGO_ASSETS_PATH, DJANGO_PARTIALS_PATH, DJANGO_VARIABLE_REPLACEMENT, CORE_EXTENSION, CORE_ASSETS_PATH,
     CORE_PARTIALS_PATH, CORE_VARIABLE_REPLACEMENT, CORE_VITE_ASSETS_PATH, MVC_EXTENSION, MVC_ASSETS_PATH,
-    MVC_VITE_ASSETS_PATH, MVC_PARTIALS_PATH, MVC_VARIABLE_REPLACEMENT
+    MVC_VITE_ASSETS_PATH, MVC_PARTIALS_PATH, MVC_VARIABLE_REPLACEMENT, ROR_VITE_ASSETS_FOLDER, ROR_ASSETS_FOLDER,
+    ROR_PARTIALS_PATH, ROR_VARIABLE_REPLACEMENT, ROR_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -205,6 +206,15 @@ def ask_project_config():
         project_partials_path = MVC_PARTIALS_PATH
         variable_replacement = MVC_VARIABLE_REPLACEMENT
         file_extension = MVC_EXTENSION
+
+    elif framework == "ror":
+        if frontend_pipeline == "vite":
+            project_assets_path = ROR_VITE_ASSETS_FOLDER
+        else:
+            project_assets_path = ROR_ASSETS_FOLDER
+        project_partials_path = ROR_PARTIALS_PATH
+        variable_replacement = ROR_VARIABLE_REPLACEMENT
+        file_extension = ROR_EXTENSION
 
     else:
         project_assets_path = None
