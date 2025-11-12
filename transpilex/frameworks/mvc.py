@@ -99,7 +99,7 @@ class BaseMVCConverter:
 
         if self.config.partials_path:
             move_files(self.project_views_path / "Partials", self.project_partials_path)
-            self._normalize_partials_folder(self.project_partials_path)
+            self._normalize_partials_folder()
             replace_variables(self.project_shared_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
             self._add_viewbag_vars_block()
@@ -469,11 +469,11 @@ class BaseMVCConverter:
 
             self._create_controller_file_with_views(controller_file_path, folder_name, actions)
 
-    def _to_pascal(self, s: str) -> str:
+    def _to_pascal(self, s: str):
         parts = re.split(r"[^A-Za-z0-9]+", s)
         return "".join(p[:1].upper() + p[1:] for p in parts if p)
 
-    def _make_action_name(self, folder_name: str, file_stem: str) -> str:
+    def _make_action_name(self, folder_name: str, file_stem: str):
         """
         Build a valid C# action name from folder + file stem.
         - If stem starts with a digit or is a reserved word (like Empty), prefix folder.
@@ -523,17 +523,15 @@ namespace {self.project_name}.Controllers
         with open(path, "w", encoding="utf-8") as f:
             f.write(using_statements + "\n\n" + controller_class)
 
-    def _normalize_partials_folder(self, folder: Path):
+    def _normalize_partials_folder(self):
         """
         In `folder`, ensure every partial:
           - has PascalCase filename,
           - starts with '_',
           - removes unprefixed duplicates when an underscored file exists.
         """
-        if not folder.exists():
-            return
 
-        for p in list(folder.rglob(f"*{self.config.file_extension}")):
+        for p in list(self.project_partials_path.rglob(f"*{self.config.file_extension}")):
             if not p.is_file():
                 continue
 

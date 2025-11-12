@@ -1,5 +1,5 @@
 import re
-import os
+import shutil
 import json
 import html
 import subprocess
@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup, NavigableString
 from transpilex.config.base import ROR_VITE_PROJECT_CREATION_COMMAND, ROR_PROJECT_CREATION_COMMAND
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, copy_public_only_assets
+from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import move_files, rename_item, copy_items
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.gulpfile import add_gulpfile
@@ -16,6 +17,7 @@ from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
+from transpilex.utils.assets import clean_relative_asset_paths
 
 
 class BaseRorConverter:
@@ -65,13 +67,14 @@ class BaseRorConverter:
             case_style="snake"
         )
 
-        rename_item(Path(self.project_views_path / "layouts"), "layouts-eg")
+        rename_item(Path(self.project_views_path / "layouts"), "layouts_eg")
         rename_item(Path(self.project_views_path / "shared"), "layouts")
 
         self._convert()
 
         if self.config.partials_path:
             move_files(self.project_views_path / "partials", self.project_partials_path)
+            self._normalize_partials_folder()
             replace_variables(self.project_partials_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
 
@@ -129,9 +132,15 @@ class BaseRorConverter:
                 for key, original in placeholder_map.items():
                     out = out.replace(key, original)
 
+                if self.config.frontend_pipeline == 'gulp':
+                    out = clean_relative_asset_paths(out)
+                else:
+                    out = self._replace_vite_scripts(out)
+                    out = self._replace_asset_image_paths(out)
+
                 out = self._replace_all_includes_with_erb(out)
-                out = self._replace_asset_image_paths(out)
                 out = self._replace_anchor_links_with_routes(out, self.route_map)
+
                 file.write_text(out, encoding="utf-8")
 
                 Log.converted(f"{file}")
@@ -173,22 +182,27 @@ class BaseRorConverter:
             # Build ERB output
             erb_output = f"""<% @title = "{layout_title}" %>
 
-    {html_attr_section}
+{html_attr_section}
 
-    <% content_for :styles do %>
-    {links_html}
-    <% end %>
+<% content_for :styles do %>
+{links_html}
+<% end %>
 
-    <% content_for :content do %>
-    {main_content}
-    <% end %>
+<% content_for :content do %>
+{main_content}
+<% end %>
 
-    <% content_for :scripts do %>
-    {scripts_output}
-    <% end %>
+<% content_for :scripts do %>
+{scripts_output}
+<% end %>
     """
 
-            final = self._replace_asset_image_paths(erb_output)
+            if self.config.frontend_pipeline == 'gulp':
+                final = clean_relative_asset_paths(erb_output)
+            else:
+                final = self._replace_vite_scripts(erb_output)
+                final = self._replace_asset_image_paths(final)
+
             final = self._replace_anchor_links_with_routes(final, self.route_map)
             file.write_text(final.strip() + "\n", encoding="utf-8")
 
@@ -243,6 +257,8 @@ class BaseRorConverter:
             clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
             clean_path = Path(clean_path).with_suffix("").as_posix()
 
+            clean_path = "/".join(apply_casing(p, "snake") for p in clean_path.split("/"))
+
             # Case 1: partials/... → layouts/partials/...
             if clean_path.startswith("partials/"):
                 clean_path = clean_path.replace("partials/", "layouts/partials/", 1)
@@ -274,8 +290,10 @@ class BaseRorConverter:
 
     def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]):
         """
-        Replace <a href="filename.html"> with Rails url_for helper:
-        href="<%= url_for :controller => '...', :action => '...' %>"
+        Converts <a href="file.html"> → ERB helpers:
+          - index.html → <%= root_path %>
+          - /graphs/apex/area.html → <%= url_for :controller => 'graphs', :action => 'apex_area' %>
+        Handles nested routes and numeric actions safely.
         """
         if not route_map:
             return content
@@ -283,22 +301,40 @@ class BaseRorConverter:
         pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
 
         def repl(match):
-            href_val = match.group("href")
-            href_file = Path(href_val).name
+            href_val = match.group("href").strip()
+            href_file = Path(href_val).name.lower()
 
-            if href_file in route_map:
-                route_path = route_map[href_file].lstrip("/")
-                parts = route_path.split("/")
-                controller = parts[0] if len(parts) >= 1 else "application"
-                action = parts[1] if len(parts) >= 2 else "index"
+            if href_file in {"index.html", "./index.html"}:
+                return 'href="<%= root_path %>"'
 
-                # Prefix if numeric action
+            # Try route map lookup
+            route_path = route_map.get(href_file)
+            if not route_path:
+                # fallback: derive from filename
+                filename = href_file.replace(".html", "")
+                parts = filename.split("-")
+                controller = parts[0]
+                action = "_".join(parts[1:]) if len(parts) > 1 else "index"
+                # still handle numeric prefix
                 if re.match(r"^\d", action):
                     action = f"{controller}_{action}"
-
                 return f'href="<%= url_for :controller => \'{controller}\', :action => \'{action}\' %>"'
 
-            return match.group(0)
+            # Normalize route map path
+            route_path = route_path.lstrip("/")
+            if not route_path or route_path == "index":
+                return 'href="<%= root_path %>"'
+
+            # Split into controller/action
+            parts = route_path.split("/")
+            controller = parts[0] if parts else "application"
+            action_parts = parts[1:] or ["index"]
+            action = "_".join(p.replace("-", "_").replace(".html", "") for p in action_parts)
+
+            if re.match(r"^\d", action):
+                action = f"{controller}_{action}"
+
+            return f'href="<%= url_for :controller => \'{controller}\', :action => \'{action}\' %>"'
 
         return pattern.sub(repl, content)
 
@@ -395,46 +431,63 @@ class BaseRorConverter:
 
     def _get_route_for_file(self, file: Path):
         """
-        Match the .html.erb file to its route_map entry using full relative path comparison.
-        Returns the Rails-style route path.
+        Resolve a view file to its Rails URL path (keep hyphens) and inferred controller/action.
+        Returns a tuple: (url_path_hyphen, controller, action_underscore)
         """
         try:
-            # Compute file path relative to views folder (e.g., apps/email.html.erb)
+            # e.g., views/graphs/apex/area.html.erb  ->  graphs/apex/area
             rel_path = file.relative_to(self.project_views_path)
-            rel_html = str(rel_path.with_suffix("").with_suffix("").with_suffix(".html")).replace("\\", "/")
+            # strip .erb then .html
+            stem_parts = rel_path.with_suffix("").with_suffix("").parts  # ('graphs','apex','area')
 
-            # Normalize to snake_case for comparison
-            normalized_html = rel_html.replace("_", "-").lower()
+            controller = stem_parts[0] if stem_parts else "application"
+            rest_parts = stem_parts[1:] or ["index"]
 
-            # Direct match in route_map keys
-            for html_name, route in self.route_map.items():
-                html_key = html_name.lower()
-                if normalized_html == html_key or normalized_html.endswith(html_key):
-                    if route == "/index":
-                        return "/"
-                    # Convert to snake_case for Rails
-                    return route.replace("-", "_")
+            # Action is the remaining parts joined with underscores (snake)
+            action = "_".join(rest_parts)
 
-            # Fallback: construct from path structure
-            snake_parts = "/".join([apply_casing(p, "snake") for p in rel_path.with_suffix("").with_suffix("").parts])
-            route_guess = "/" + snake_parts
-            return route_guess
+            # Build URL path with hyphens (use route_map if available)
+            # Try exact match using route_map (filename.html -> '/graphs/apex/area')
+            url_path = None
+            rel_html = str(rel_path.with_suffix("").with_suffix(".html")).replace("\\",
+                                                                                  "/").lower()  # 'graphs/apex/area.html'
 
+            if self.route_map:
+                # direct filename.html key
+                fname = Path(rel_html).name  # 'area.html'
+                if fname in self.route_map:
+                    url_path = self.route_map[fname]  # '/graphs/apex/area' (hyphen-preserved)
+
+                # fallback: any route whose trailing file matches
+                if not url_path:
+                    for html_name, route in self.route_map.items():
+                        if rel_html.endswith(html_name.lower()):
+                            url_path = route
+                            break
+
+            if not url_path:
+                # Fallback: construct from parts (hyphen style). Our files are snake_case already,
+                # but URLs should use hyphens to match your preferred style.
+                hyphen_parts = [p.replace("_", "-") for p in stem_parts]
+                url_path = "/" + "/".join(hyphen_parts) if hyphen_parts else "/"
+
+            # Special-case root
+            if url_path == "/index":
+                url_path = "/"
+
+            return (url_path, controller, action)
         except Exception:
-            return "/"
+            return ("/", "application", "index")
 
     def _create_controller_file(self, path: Path, controller_name: str, actions: list):
         """
-        Creates a Rails controller Ruby file with appropriate action methods.
-        - Adds render template for each action
-        - Prefixes controller name for numeric actions
+        actions: List of tuples (action_name, view_path, is_nested, url_path)
         """
-
-        class_name = "".join(word.capitalize() for word in controller_name.split("_")) + "Controller"
+        class_name = "".join(w.capitalize() for w in controller_name.split("_")) + "Controller"
 
         methods = ""
-        for action_name, view_path, is_nested, route_path in actions:
-            # Prefix if action starts with a number
+        for action_name, view_path, is_nested, url_path in actions:
+            # prefix if starts with number
             if re.match(r"^\d", action_name):
                 action_name = f"{controller_name}_{action_name}"
 
@@ -443,10 +496,9 @@ class BaseRorConverter:
             methods += "  end\n\n"
 
         controller_code = f"""class {class_name} < ApplicationController
-    {methods.strip()}
-    end
+{methods.strip()}
+end
     """
-
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(controller_code, encoding="utf-8")
 
@@ -455,7 +507,7 @@ class BaseRorConverter:
         Generate Rails controllers based on view file structure.
         Follows Rails conventions and organizes by resource/namespace.
         """
-        ignore_list = ignore_list or ["layouts", "layouts-eg", "partials", "shared"]
+        ignore_list = ignore_list or ["layouts", "partials", "shared"]
 
         # Clean up existing controllers (except application_controller.rb)
         if self.project_controllers_path.exists():
@@ -482,28 +534,22 @@ class BaseRorConverter:
             actions = []
 
             # Process all .html.erb files in this controller's views
-            for file in controller_folder.rglob("*.html.erb"):
+            for file in controller_folder.rglob(f"*{self.config.file_extension}"):
                 # Skip partials (files starting with _)
                 if file.name.startswith("_"):
                     continue
 
-                # Calculate relative path from controller folder
-                rel_path = file.relative_to(controller_folder)
-                path_parts = list(rel_path.with_suffix("").with_suffix("").parts)
+                url_path, ctrl_from_file, action_from_file = self._get_route_for_file(file)
+                controller_name = controller_folder.name
 
-                # Determine if nested (in subdirectory)
-                is_nested = len(path_parts) > 1
+                rel_parts = file.relative_to(controller_folder).with_suffix("").with_suffix("").parts  # ('apex','area')
+                view_path = f"{controller_name}/{'/'.join(rel_parts) if rel_parts else 'index'}"
 
-                # Action name: join path parts with underscore
-                action_name = "_".join(path_parts) if is_nested else path_parts[0]
+                action_name = "_".join(rel_parts) if rel_parts else "index"
 
-                # View path for documentation
-                view_path = f"{controller_name}/{'/'.join(path_parts)}"
-
-                # Get route from route_map
-                route_path = self._get_route_for_file(file)
-
-                actions.append((action_name, view_path, is_nested, route_path))
+                # Track (action_name, view_path, is_nested, url_path)
+                is_nested = len(rel_parts) > 1
+                actions.append((action_name, view_path, is_nested, url_path))
 
             if actions:
                 controller_file_name = f"{controller_name}_controller.rb"
@@ -521,50 +567,101 @@ class BaseRorConverter:
 
     def _create_routes(self, controllers_actions: dict):
         """
-        Generate Rails routes in explicit `get "path", to: 'controller#action'` form.
+        Emit routes as: get "graphs/apex/area", to: 'graphs#apex_area'
+        Uses URL (hyphen) for path and underscored action for method.
         """
         route_lines = []
         route_lines.append("\n  # Generated routes from HTML templates")
 
         for controller_name, actions in sorted(controllers_actions.items()):
             route_lines.append(f"\n  # {controller_name.capitalize()} routes")
-
-            for action_name, view_path, is_nested, route_path in sorted(actions, key=lambda x: x[0]):
+            for action_name, view_path, is_nested, url_path in sorted(actions, key=lambda x: x[0]):
+                # numeric action -> prefix
                 if re.match(r"^\d", action_name):
                     action_name = f"{controller_name}_{action_name}"
 
-                # Clean route path
-                if route_path == "/":
+                if url_path == "/":
                     route_lines.append(f"  root '{controller_name}#{action_name}'")
                     continue
 
-                url_path = route_path.lstrip("/")
+                path_str = url_path.lstrip("/")  # e.g., graphs/apex/area (hyphen-preserved)
+                route_lines.append(f"  get \"{path_str}\", to: '{controller_name}#{action_name}'")
 
-                # Handle case like ecommerce/product-grid
-                route_lines.append(
-                    f"  get \"{url_path}\", to: '{controller_name}#{action_name}'"
-                )
-
-        # Inject into routes.rb
         routes_content = self.project_routes_path.read_text(encoding="utf-8")
-
         if "Rails.application.routes.draw do" in routes_content:
             lines = routes_content.split("\n")
-            insert_index = len(lines) - 1
-            for i in range(len(lines) - 1, -1, -1):
-                if lines[i].strip() == "end":
-                    insert_index = i
-                    break
+            insert_index = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].strip() == "end"), len(lines) - 1)
             lines[insert_index:insert_index] = route_lines
             new_content = "\n".join(lines)
         else:
             new_content = f"""Rails.application.routes.draw do
-    {chr(10).join(route_lines)}
-    end
-    """
-
+{chr(10).join(route_lines)}
+end
+"""
         self.project_routes_path.write_text(new_content, encoding="utf-8")
         Log.updated(f"Routes generated in {self.project_routes_path}")
+
+    def _normalize_partials_folder(self):
+        """
+        In `folder`, ensure every partial:
+          - has snake_case filename,
+          - starts with '_',
+          - removes unprefixed duplicates when an underscored file exists.
+        """
+
+        for p in list(self.project_partials_path.rglob(f"*{self.config.file_extension}")):
+            if not p.is_file():
+                continue
+
+            name = p.stem
+            suffix = p.suffix
+
+            target_name = f"_{name}{suffix}"
+            target_path = p.with_name(target_name)
+
+            # If target already exists and this is an unprefixed duplicate → delete current
+            if target_path.exists() and p.resolve() != target_path.resolve():
+                # Prefer the underscored snake_case file; remove the current one
+                try:
+                    p.unlink()
+                except Exception as e:
+                    Log.error(f"Failed to delete duplicate partial {p}: {e}")
+                continue
+
+            # If current path is already the correct target, skip
+            if p.name == target_name:
+                continue
+
+            # Otherwise rename to the normalized target
+            try:
+                p.rename(target_path)
+            except FileExistsError:
+                # Rare race: if created concurrently, keep the underscored snake_case and remove this one
+                try:
+                    p.unlink()
+                except Exception as e:
+                    Log.error(f"Failed to delete duplicate partial {p}: {e}")
+            except Exception as e:
+                Log.error(f"Failed to normalize partial {p}: {e}")
+
+    def _replace_vite_scripts(self, html_content: str):
+        """
+        Converts <script type="module" src="assets/js/..."> into
+        <%= vite_javascript_tag 'js/...' %> when using the Vite pipeline.
+        Only affects local asset scripts, not external/CDN scripts.
+        """
+
+        pattern = re.compile(
+            r'<script[^>]+src=["\'](?:\.{0,2}/)?assets/(?P<path>js/[^"\']+)["\'][^>]*></script>',
+            flags=re.IGNORECASE
+        )
+
+        def repl(match):
+            script_path = match.group("path").lstrip("/")
+            # remove any version hashes if needed (optional)
+            return f"<%= vite_javascript_tag '{script_path}' %>"
+
+        return pattern.sub(repl, html_content)
 
 
 class RorGulpConverter(BaseRorConverter):

@@ -87,7 +87,7 @@ class BaseCoreConverter:
 
         if self.config.partials_path:
             move_files(self.project_pages_path / "Partials", self.project_partials_path)
-            self._normalize_partials_folder(self.project_partials_path)
+            self._normalize_partials_folder()
             replace_variables(self.project_shared_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
             self._add_viewbag_vars_block()
@@ -430,17 +430,15 @@ namespace {namespace}
 
         return pattern.sub(repl, content)
 
-    def _normalize_partials_folder(self, folder: Path):
+    def _normalize_partials_folder(self):
         """
         In `folder`, ensure every partial:
           - has PascalCase filename,
           - starts with '_',
           - removes unprefixed duplicates when an underscored file exists.
         """
-        if not folder.exists():
-            return
 
-        for p in list(folder.rglob(f"*{self.config.file_extension}")):
+        for p in list(self.project_partials_path.rglob(f"*{self.config.file_extension}")):
             if not p.is_file():
                 continue
 
