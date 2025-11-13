@@ -161,6 +161,7 @@ ROR_ASSETS_FOLDER = 'public'
 ROR_VITE_ASSETS_FOLDER = 'frontend'
 ROR_PARTIALS_PATH = "app/views/layouts/partials"
 ROR_VARIABLE_REPLACEMENT = r'<%= \1 %>'
+ROR_TAILWIND_PLUGINS = '\ngem "tailwindcss-ruby", "~> 4.1"\n gem "tailwindcss-rails", "~> 4.4"\n'
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

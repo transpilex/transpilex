@@ -135,22 +135,9 @@ def ask_project_config():
         only_directories=True
     ).ask())
 
-    framework_is_core = framework in {"Core", "MVC"}
-    use_vite = frontend_pipeline.lower() == "vite"
+    new_dest_path = Path(dest_path) / framework.lower()
 
-    if framework_is_core:
-        base_name = framework.title() + ("vite" if use_vite else "")
-    elif use_vite and framework not in VITE_ONLY:
-        base_name = f"{framework.lower()}-vite"
-    else:
-        base_name = framework.lower()
-
-    new_dest_path = Path(dest_path) / base_name
-
-    if framework_is_core:
-        project_root_path = Path(new_dest_path / project_name.title())
-    else:
-        project_root_path = Path(new_dest_path / project_name)
+    project_root_path = Path(new_dest_path / project_name)
 
     if folder_exists(project_root_path):
         Log.error(f"Project already exists at: {project_root_path}")

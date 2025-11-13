@@ -220,14 +220,12 @@ class BaseCoreConverter:
         Convert @@include(...) and {{> ...}} to Razor partial syntax with ViewBag params.
         Uses patterns from import_patterns.json via load_compiled_patterns().
         """
-
         fragments = []
-
-        # --- Collect all @@include(...) and {{> ...}} fragments
         for label, pattern in self.config.import_patterns.items():
             alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
             for match in alt_pattern.finditer(content):
                 fragments.append({
+                    "label": label,
                     "full": match.group(0),
                     "path": match.group("path"),
                     "params": match.groupdict().get("params", "")
@@ -285,7 +283,7 @@ class BaseCoreConverter:
 
             params = _parse_params(params_raw)
 
-            # --- Priority logic ---
+            #  Priority logic
             if ("page-title" in filename_lower) or ("topbar" in filename_lower):
                 found_page_title = True
             elif ("title-meta" in filename_lower) and found_page_title:
@@ -293,15 +291,15 @@ class BaseCoreConverter:
                 new_content = new_content.replace(frag["full"], "")
                 continue
 
-            # --- Update ViewBag (latest wins)
+            # Update ViewBag (latest wins)
             for k, v in params.items():
                 viewbag_dict[k] = v
 
-            # --- Replace with Razor partial include
+            # Replace with Razor partial include
             replacement = f'@await Html.PartialAsync("~/{clean_path}.cshtml")'
             new_content = new_content.replace(frag["full"], replacement)
 
-        # --- Build ViewBag block
+        # Build ViewBag block
         viewbag_lines = [f'    ViewBag.{k} = "{v}";' for k, v in viewbag_dict.items()]
 
         return {"content": new_content, "viewbag_blocks": viewbag_lines}

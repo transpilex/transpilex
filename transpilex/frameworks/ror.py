@@ -3,14 +3,15 @@ import shutil
 import json
 import html
 import subprocess
+from cgi import print_environ_usage
 from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString
 
-from transpilex.config.base import ROR_VITE_PROJECT_CREATION_COMMAND, ROR_PROJECT_CREATION_COMMAND
+from transpilex.config.base import ROR_VITE_PROJECT_CREATION_COMMAND, ROR_PROJECT_CREATION_COMMAND, ROR_TAILWIND_PLUGINS
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, copy_public_only_assets
 from transpilex.utils.casing import apply_casing
-from transpilex.utils.file import move_files, rename_item, copy_items
+from transpilex.utils.file import move_files, rename_item, copy_items, remove_item
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.gulpfile import add_gulpfile
 from transpilex.utils.logs import Log
@@ -29,6 +30,11 @@ class BaseRorConverter:
         self.project_controllers_path = Path(self.config.project_root_path / "app" / "controllers")
         self.project_routes_path = Path(self.config.project_root_path / "config" / "routes.rb")
         self.project_config_deploy_path = Path(self.config.project_root_path / "config" / "deploy.yml")
+        self.project_tailwind_css_path = Path(self.config.project_root_path / "app" / "assets" / "tailwind")
+        self.project_gemfile_path = Path(self.config.project_root_path / "Gemfile")
+        self.project_procfile_path = Path(self.config.project_root_path / "Procfile.dev")
+        self.project_head_css_path = Path(
+            self.config.project_root_path / "app/views/layouts/partials/_head_css.html.erb")
 
         self.route_map = None
 
@@ -85,7 +91,9 @@ class BaseRorConverter:
         count = 0
 
         for file in self.project_views_path.rglob(f"*{self.config.file_extension}"):
-            if not file.is_file():
+            is_layout = "layouts" in file.parts and "partials" not in file.parts
+
+            if not file.is_file() or is_layout:
                 continue
 
             try:
@@ -111,26 +119,12 @@ class BaseRorConverter:
                 if layout_title:
                     break
 
-            placeholder_map = {}
-
-            def _protect_erb(mm):
-                key = f"__ERB_{len(placeholder_map)}__"
-                placeholder_map[key] = mm.group(0)
-                return key
-
-            # Protect ERB tags <%= %> and <% %>
-            protected_content = re.sub(r"<%[=\-]?.*?%>", _protect_erb, original_content, flags=re.DOTALL)
-
-            soup = BeautifulSoup(protected_content, "html.parser")
+            soup = BeautifulSoup(original_content, "html.parser")
             is_partial = "partials" in file.parts
 
             if is_partial:
                 # Convert partials
                 out = str(soup)
-
-                # Restore original <%= ... %> blocks
-                for key, original in placeholder_map.items():
-                    out = out.replace(key, original)
 
                 if self.config.frontend_pipeline == 'gulp':
                     out = clean_relative_asset_paths(out)
@@ -138,7 +132,7 @@ class BaseRorConverter:
                     out = self._replace_vite_scripts(out)
                     out = self._replace_asset_image_paths(out)
 
-                out = self._replace_all_includes_with_erb(out)
+                out = self._replace_all_includes_with_erb(out).strip()
                 out = self._replace_anchor_links_with_routes(out, self.route_map)
 
                 file.write_text(out, encoding="utf-8")
@@ -171,10 +165,6 @@ class BaseRorConverter:
             else:
                 body_html = str(soup)
 
-            # Restore <%= ... %> in body_html
-            for key, original in placeholder_map.items():
-                body_html = body_html.replace(key, original)
-
             main_content = self._replace_all_includes_with_erb(body_html).strip()
 
             html_attr_section = self._extract_html_data_attributes(original_content)
@@ -188,9 +178,7 @@ class BaseRorConverter:
 {links_html}
 <% end %>
 
-<% content_for :content do %>
 {main_content}
-<% end %>
 
 <% content_for :scripts do %>
 {scripts_output}
@@ -239,8 +227,10 @@ class BaseRorConverter:
         """
         fragments = []
         for label, pattern in self.config.import_patterns.items():
-            # Extend to also match escaped form ({{&gt; ...}})
-            alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+            pattern_str = pattern.pattern
+            pattern_str = pattern_str.replace(r"\>\s*", r"(?:>|&gt;)\s*")
+            pattern_str = pattern_str.replace(r">\s*", r"(?:>|&gt;)\s*")
+            alt_pattern = re.compile(pattern_str)
             for match in alt_pattern.finditer(content):
                 fragments.append({
                     "label": label,
@@ -270,7 +260,7 @@ class BaseRorConverter:
                 pass  # already correct
 
             # Skip title includes (they go into @title)
-            if Path(clean_path).name.lower() in {"title-meta", "app-meta-title", "title_meta", "app_meta_title"}:
+            if Path(clean_path).name.lower() in {"_title_meta", "_app_meta_title"}:
                 content = content.replace(frag["full"], "")
                 continue
 
@@ -333,6 +323,9 @@ class BaseRorConverter:
 
             if re.match(r"^\d", action):
                 action = f"{controller}_{action}"
+
+            if controller == "layouts":
+                controller = "layouts_eg"
 
             return f'href="<%= url_for :controller => \'{controller}\', :action => \'{action}\' %>"'
 
@@ -509,17 +502,6 @@ end
         """
         ignore_list = ignore_list or ["layouts", "partials", "shared"]
 
-        # Clean up existing controllers (except application_controller.rb)
-        if self.project_controllers_path.exists():
-            for item in self.project_controllers_path.iterdir():
-                if item.name != "application_controller.rb" and item.name != "concerns":
-                    if item.is_file():
-                        item.unlink()
-                    elif item.is_dir():
-                        shutil.rmtree(item)
-
-        self.project_controllers_path.mkdir(parents=True, exist_ok=True)
-
         controllers_actions = {}
 
         # Scan view directories
@@ -663,6 +645,27 @@ end
 
         return pattern.sub(repl, html_content)
 
+    def _setup_tailwind(self):
+
+        copy_items(Path(self.config.project_assets_path / "css"), self.project_tailwind_css_path, copy_mode="contents")
+        remove_item(Path(self.config.project_assets_path / "css"))
+
+        try:
+            with open(self.project_gemfile_path, 'a') as file:
+                file.write(ROR_TAILWIND_PLUGINS)
+
+            with open(self.project_procfile_path, 'a') as file:
+                file.write("css: bin/rails tailwindcss:watch")
+
+            with open(self.project_head_css_path, 'a') as file:
+                file.write('<%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>')
+
+            rename_item(Path(self.project_tailwind_css_path / "app.css"), "application")
+
+        except (UnicodeDecodeError, OSError):
+            Log.error(f"Failed to setup Tailwind CSS")
+            return
+
 
 class RorGulpConverter(BaseRorConverter):
     def __init__(self, config: ProjectConfig):
@@ -698,6 +701,9 @@ class RorViteConverter(BaseRorConverter):
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
             copy_items(Path(self.project_public_path / "images"), self.config.project_assets_path)
+
+            if self.config.ui_library == "tailwind":
+                self._setup_tailwind()
 
         update_package_json(self.config)
 
