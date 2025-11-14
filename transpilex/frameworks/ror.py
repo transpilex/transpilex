@@ -658,9 +658,9 @@ end
                 file.write("css: bin/rails tailwindcss:watch")
 
             with open(self.project_head_css_path, 'a') as file:
-                file.write('<%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>')
+                file.write('\n<%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>')
 
-            rename_item(Path(self.project_tailwind_css_path / "app.css"), "application")
+            rename_item(Path(self.project_tailwind_css_path / "app.css"), "application.css")
 
         except (UnicodeDecodeError, OSError):
             Log.error(f"Failed to setup Tailwind CSS")
