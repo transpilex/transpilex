@@ -56,7 +56,7 @@ def copy_and_change_extension(
 
         shutil.copy2(src_file, dest_file)
 
-    Log.info(f"{len(files)} files processed and saved in {destination_folder} with '{new_extension}' extension.")
+    Log.info(f"{len(files)} files processed and saved in {destination_folder.relative_to(Path.cwd())} with '{new_extension}' extension.")
 
 
 def folder_exists(folder_path: Path) -> bool:

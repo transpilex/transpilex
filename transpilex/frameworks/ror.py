@@ -1,9 +1,7 @@
 import re
-import shutil
 import json
 import html
 import subprocess
-from cgi import print_environ_usage
 from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString
 
@@ -58,7 +56,7 @@ class BaseRorConverter:
                 self.project_config_deploy_path.write_text(content, encoding="utf-8")
 
             except (UnicodeDecodeError, OSError):
-                Log.error("Error changing project_name in _ViewImports.csproj")
+                Log.error(f"Error changing project_name in {self.project_config_deploy_path}")
 
         except subprocess.CalledProcessError:
             Log.error("RoR project creation failed")
@@ -87,7 +85,6 @@ class BaseRorConverter:
         self._create_controllers()
 
     def _convert(self):
-        """Convert files inside RoR views directory."""
         count = 0
 
         for file in self.project_views_path.rglob(f"*{self.config.file_extension}"):

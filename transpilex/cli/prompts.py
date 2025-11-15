@@ -12,7 +12,8 @@ from transpilex.config.base import (
     DJANGO_ASSETS_PATH, DJANGO_PARTIALS_PATH, DJANGO_VARIABLE_REPLACEMENT, CORE_EXTENSION, CORE_ASSETS_PATH,
     CORE_PARTIALS_PATH, CORE_VARIABLE_REPLACEMENT, CORE_VITE_ASSETS_PATH, MVC_EXTENSION, MVC_ASSETS_PATH,
     MVC_VITE_ASSETS_PATH, MVC_PARTIALS_PATH, MVC_VARIABLE_REPLACEMENT, ROR_VITE_ASSETS_FOLDER, ROR_ASSETS_FOLDER,
-    ROR_PARTIALS_PATH, ROR_VARIABLE_REPLACEMENT, ROR_EXTENSION
+    ROR_PARTIALS_PATH, ROR_VARIABLE_REPLACEMENT, ROR_EXTENSION, CAKEPHP_ASSETS_FOLDER, CAKEPHP_PARTIALS_PATH,
+    CAKEPHP_VARIABLE_REPLACEMENT, CAKEPHP_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -155,12 +156,12 @@ def ask_project_config():
     plugins_folder = GULP_PLUGINS_FOLDER
 
     if framework == "php":
-        if frontend_pipeline == "vite":
-            project_assets_path = PHP_VITE_ASSETS_PATH
-            project_partials_path = PHP_VITE_PARTIALS_PATH
-        else:
+        if frontend_pipeline == "gulp":
             project_assets_path = PHP_ASSETS_PATH
             project_partials_path = PHP_PARTIALS_PATH
+        else:
+            project_assets_path = PHP_VITE_ASSETS_PATH
+            project_partials_path = PHP_VITE_PARTIALS_PATH
         variable_replacement = PHP_VARIABLE_REPLACEMENT
         file_extension = PHP_EXTENSION
 
@@ -177,31 +178,37 @@ def ask_project_config():
         file_extension = DJANGO_EXTENSION
 
     elif framework == "core":
-        if frontend_pipeline == "vite":
-            project_assets_path = CORE_VITE_ASSETS_PATH
-        else:
+        if frontend_pipeline == "gulp":
             project_assets_path = CORE_ASSETS_PATH
+        else:
+            project_assets_path = CORE_VITE_ASSETS_PATH
         project_partials_path = CORE_PARTIALS_PATH
         variable_replacement = CORE_VARIABLE_REPLACEMENT
         file_extension = CORE_EXTENSION
 
     elif framework == "mvc":
-        if frontend_pipeline == "vite":
-            project_assets_path = MVC_VITE_ASSETS_PATH
-        else:
+        if frontend_pipeline == "gulp":
             project_assets_path = MVC_ASSETS_PATH
+        else:
+            project_assets_path = MVC_VITE_ASSETS_PATH
         project_partials_path = MVC_PARTIALS_PATH
         variable_replacement = MVC_VARIABLE_REPLACEMENT
         file_extension = MVC_EXTENSION
 
     elif framework == "ror":
-        if frontend_pipeline == "vite":
-            project_assets_path = ROR_VITE_ASSETS_FOLDER
-        else:
+        if frontend_pipeline == "gulp":
             project_assets_path = ROR_ASSETS_FOLDER
+        else:
+            project_assets_path = ROR_VITE_ASSETS_FOLDER
         project_partials_path = ROR_PARTIALS_PATH
         variable_replacement = ROR_VARIABLE_REPLACEMENT
         file_extension = ROR_EXTENSION
+
+    elif framework == "cakephp":
+        project_assets_path = CAKEPHP_ASSETS_FOLDER
+        project_partials_path = CAKEPHP_PARTIALS_PATH
+        variable_replacement = CAKEPHP_VARIABLE_REPLACEMENT
+        file_extension = CAKEPHP_EXTENSION
 
     else:
         project_assets_path = None

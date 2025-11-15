@@ -1,4 +1,4 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR", "CakePHP"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -162,6 +162,13 @@ ROR_VITE_ASSETS_FOLDER = 'frontend'
 ROR_PARTIALS_PATH = "app/views/layouts/partials"
 ROR_VARIABLE_REPLACEMENT = r'<%= \1 %>'
 ROR_TAILWIND_PLUGINS = '\ngem "tailwindcss-ruby", "~> 4.1"\n gem "tailwindcss-rails", "~> 4.4"\n'
+
+# CakePHP
+CAKEPHP_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/cakephp-boilerplate.git', '.']
+CAKEPHP_EXTENSION = '.php'
+CAKEPHP_ASSETS_FOLDER = 'webroot'
+CAKEPHP_PARTIALS_PATH = "templates/element"
+CAKEPHP_VARIABLE_REPLACEMENT = r'<?= $\1 ?>'
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",
