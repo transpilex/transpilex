@@ -7,7 +7,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString
 
-from transpilex.config.base import CAKEPHP_PROJECT_CREATION_COMMAND
+from transpilex.config.base import CAKEPHP_PROJECT_CREATION_COMMAND, CAKEPHP_ASSETS_PRESERVE
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, clean_relative_asset_paths
 from transpilex.utils.casing import apply_casing
@@ -170,95 +170,6 @@ class BaseCakePHPConverter:
 
         return content
 
-    # def _convert(self):
-    #
-    #     count = 0
-    #
-    #     for file in self.project_pages_path.rglob(f"*{self.config.file_extension}"):
-    #         if not file.is_file():
-    #             continue
-    #
-    #         # Read as UTF-8; silently skip if binary/non-UTF8
-    #         try:
-    #             with open(file, "r", encoding="utf-8") as f:
-    #                 content = f.read()
-    #         except (UnicodeDecodeError, OSError):
-    #             continue
-    #
-    #         original_content = content
-    #
-    #         content = replace_html_links(content, '')
-    #
-    #         if any(k in content for k in self.config.import_patterns.keys()):
-    #             content = self._replace_includes(content, file)
-    #
-    #         if content != original_content:
-    #             try:
-    #                 with open(file, "w", encoding="utf-8") as f:
-    #                     f.write(content)
-    #                 Log.converted(str(file))
-    #                 count += 1
-    #             except Exception as e:
-    #                 Log.error(f"Failed to write {file}: {e}")
-    #         else:
-    #             Log.warning(f"File was skipped (no patterns matched): {file}")
-    #
-    #     Log.info(f"{count} files converted in {self.project_pages_path}")
-    #
-    # def _parse_handlebars_params(self, param_str: Optional[str]):
-    #     """Convert 'key="value" another="123"' into {'key': 'value', 'another': '123'}"""
-    #     if not param_str:
-    #         return {}
-    #     pairs = re.findall(r'(\w+)=["\']([^"\']+)["\']', param_str)
-    #     return dict(pairs)
-    #
-    # def _replace_includes(self, content: str, file: Path):
-    #     """Replace @@include(...) and {{> ...}} patterns with CakePHP element calls."""
-    #
-    #     fragments = []
-    #     for label, pattern in self.config.import_patterns.items():
-    #         fragments += extract_fragments(content, pattern, label)
-    #
-    #     for frag in fragments:
-    #         path = frag["path"]
-    #         params_str = frag["params"]
-    #         include_type = frag["type"]
-    #
-    #         # Normalize path: remove .html extension for CakePHP
-    #         element_name = path.replace(".html", "").replace(".php", "")
-    #
-    #         if include_type == "@@":
-    #             if params_str:
-    #                 try:
-    #                     # Cleanup JSON (same as your PHP version)
-    #                     fixed_json = re.sub(r",\s*(?=[}\]])", "", params_str)
-    #                     fixed_json = re.sub(r"'([^']*)'", r'"\1"', fixed_json)
-    #                     params = json.loads(fixed_json)
-    #
-    #                     # Convert dict → CakePHP array syntax
-    #                     cake_params = ', '.join([f"'{k}' => {repr(v)}" for k, v in params.items()])
-    #                     php_code = f"<?= $this->element('{element_name}', [{cake_params}]) ?>"
-    #
-    #                 except json.JSONDecodeError as e:
-    #                     Log.warning(f"[JSON Error] in file {file.name}: {e}")
-    #                     php_code = f"<?= $this->element('{element_name}') ?>"
-    #
-    #             else:
-    #                 php_code = f"<?= $this->element('{element_name}') ?>"
-    #
-    #         else:
-    #             params = self._parse_handlebars_params(params_str)
-    #             if params:
-    #                 cake_params = ', '.join([f"'{k}' => {repr(v)}" for k, v in params.items()])
-    #                 php_code = f"<?= $this->element('{element_name}', [{cake_params}]) ?>"
-    #
-    #             else:
-    #                 php_code = f"<?= $this->element('{element_name}') ?>"
-    #
-    #         content = content.replace(frag["full"], php_code)
-    #
-    #     return content
-
     def _rename_hyphens_to_underscores(self, ignore_list=None):
         if ignore_list is None:
             ignore_list = []
@@ -299,7 +210,7 @@ class CakePHPGulpConverter(BaseCakePHPConverter):
         self.init_create_project()
 
         if self.config.asset_paths:
-            copy_assets(self.config.asset_paths, self.config.project_assets_path)
+            copy_assets(self.config.asset_paths, self.config.project_assets_path, preserve=CAKEPHP_ASSETS_PRESERVE)
             replace_asset_paths(self.config.project_assets_path, '')
 
         add_gulpfile(self.config)

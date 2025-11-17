@@ -169,6 +169,7 @@ CAKEPHP_EXTENSION = '.php'
 CAKEPHP_ASSETS_FOLDER = 'webroot'
 CAKEPHP_PARTIALS_PATH = "templates/element"
 CAKEPHP_VARIABLE_REPLACEMENT = r'<?= $\1 ?>'
+CAKEPHP_ASSETS_PRESERVE = ["index.php", ".htaccess"]
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",
