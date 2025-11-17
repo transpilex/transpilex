@@ -1,4 +1,4 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR", "CakePHP"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR", "CakePHP", "Codeigniter"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -20,11 +20,12 @@ GULP_DEV_DEPENDENCIES = {
     "autoprefixer": "^10.4.0",
     "gulp-concat": "^2.6.1",
     "cssnano": "^7.0.0",
-    "gulp": "^5.0.0",
+    "gulp": "^4.0.2",
     "gulp-plumber": "^1.2.1",
     "gulp-npm-dist": "^1.0.4",
     "gulp-postcss": "^10.0.0",
     "gulp-rename": "^2.0.0",
+    "gulp-replace": "^1.1.4",
     "gulp-rtlcss": "^2.0.0",
     "gulp-sass": "^5.0.0",
     "gulp-uglify-es": "^3.0.0",
@@ -39,7 +40,7 @@ GULP_TW_DEV_DEPENDENCIES = {
     "autoprefixer": "^10.4.0",
     "gulp-concat": "^2.6.1",
     "cssnano": "^7.0.0",
-    "gulp": "^5.0.0",
+    "gulp": "^4.0.2",
     "gulp-plumber": "^1.2.1",
     "gulp-npm-dist": "^1.0.4",
     "gulp-postcss": "^10.0.0",
@@ -170,6 +171,14 @@ CAKEPHP_ASSETS_FOLDER = 'webroot'
 CAKEPHP_PARTIALS_PATH = "templates/element"
 CAKEPHP_VARIABLE_REPLACEMENT = r'<?= $\1 ?>'
 CAKEPHP_ASSETS_PRESERVE = ["index.php", ".htaccess"]
+
+# Codeigniter
+CODEIGNITER_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/codeigniter-boilerplate.git', '.']
+CODEIGNITER_EXTENSION = '.php'
+CODEIGNITER_ASSETS_FOLDER = 'public'
+CODEIGNITER_PARTIALS_PATH = "app/Views"
+CODEIGNITER_VARIABLE_REPLACEMENT = r'<?= $\1 ?>'
+CODEIGNITER_ASSETS_PRESERVE = ["index.php", ".htaccess", "manifest.json", "robots.txt"]
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

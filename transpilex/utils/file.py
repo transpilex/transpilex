@@ -7,7 +7,7 @@ from transpilex.utils.logs import Log
 
 def find_files_with_extension(
         folder: Union[str, Path],
-        extension: str
+        extension: str = '.html'
 ) -> List[Path]:
     """
     Recursively find all files in a folder (including subfolders)

@@ -7,11 +7,10 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString
 
-from transpilex.config.base import CAKEPHP_PROJECT_CREATION_COMMAND, CAKEPHP_ASSETS_PRESERVE
+from transpilex.config.base import CODEIGNITER_ASSETS_PRESERVE, CODEIGNITER_PROJECT_CREATION_COMMAND
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, clean_relative_asset_paths
-from transpilex.utils.casing import apply_casing
-from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, move_files, copy_items
+from transpilex.utils.file import copy_items, find_files_with_extension, copy_and_change_extension
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.gulpfile import add_gulpfile
 from transpilex.utils.logs import Log
@@ -20,47 +19,44 @@ from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.replace_variables import replace_variables
 
 
-class BaseCakePHPConverter:
+class BaseCodeIgniterConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
-        self.project_pages_path = Path(self.config.project_root_path / "templates" / "Pages")
-        self.project_partials_path = Path(self.config.project_root_path / "templates" / "element")
+        self.project_views_path = Path(self.config.project_root_path / "app" / "Views")
+        self.project_partials_path = Path(self.project_views_path / "partials")
 
     def init_create_project(self):
         try:
             self.config.project_root_path.mkdir(parents=True, exist_ok=True)
 
             subprocess.run(
-                CAKEPHP_PROJECT_CREATION_COMMAND,
+                CODEIGNITER_PROJECT_CREATION_COMMAND,
                 cwd=self.config.project_root_path,
                 check=True,
                 capture_output=True, text=True)
 
-            Log.success("CakePHP project created successfully")
+            Log.success("Codeigniter project created successfully")
 
             remove_git_folders(self.config.project_root_path)
 
         except subprocess.CalledProcessError:
-            Log.error("CakePHP project creation failed")
+            Log.error("Codeigniter project creation failed")
             return
 
         files = find_files_with_extension(self.config.pages_path)
-        copy_and_change_extension(files, self.config.pages_path, self.project_pages_path, self.config.file_extension)
+        copy_and_change_extension(files, self.config.pages_path, self.project_views_path, self.config.file_extension)
 
         self._convert()
 
-        self._rename_hyphens_to_underscores()
-
         if self.config.partials_path:
-            move_files(self.project_pages_path / "partials", self.project_partials_path)
             replace_variables(self.project_partials_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
 
     def _convert(self):
         count = 0
 
-        for file in self.project_pages_path.rglob(f"*{self.config.file_extension}"):
+        for file in self.project_views_path.rglob(f"*{self.config.file_extension}"):
 
             if not file.is_file():
                 continue
@@ -83,7 +79,7 @@ class BaseCakePHPConverter:
             Log.converted(f"{file}")
             count += 1
 
-        Log.info(f"{count} files converted in {self.project_pages_path}")
+        Log.info(f"{count} files converted in {self.project_views_path}")
 
     def _parse_include_params(self, raw: str):
         """Parse JSON, key="value" Handlebars-style params, or other formats."""
@@ -135,20 +131,19 @@ class BaseCakePHPConverter:
 
         # Process fragments
         for frag in fragments:
-            raw_path = frag["path"]
+            path = frag["path"]
             params_raw = frag["params"]
 
-            # Remove ./ , ../
-            clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", raw_path)
+            # Normalize path: remove ./ or ../ prefixes
+            clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
+            clean_path = Path(clean_path).with_suffix("").as_posix()
 
-            # Remove extension (.html / .php)
-            clean_path = Path(clean_path).stem
-
-            # Use only FILENAME (no directory)
-            filename_only = clean_path.split("/")[-1]
-
-            # Convert name to snake_case
-            filename_only = apply_casing(filename_only, "snake")
+            # Case 1: top-level includes (no folder)
+            if "/" not in clean_path:
+                clean_path = f"partials/{clean_path}"
+            # Case 2: already under (rare edge)
+            elif clean_path.startswith("partials/"):
+                pass  # already correct
 
             # Parse params
             params = self._parse_include_params(params_raw)
@@ -162,45 +157,16 @@ class BaseCakePHPConverter:
                         param_pairs.append(f"'{k}' => {str(v).lower()}")
                 param_str = ", ".join(param_pairs)
 
-                replacement = f"<?= $this->element('{filename_only}', [{param_str}]) ?>"
+                replacement = f"<?php echo view('{clean_path}', array({param_str})) ?>"
             else:
-                replacement = f"<?= $this->element('{filename_only}') ?>"
+                replacement = f"<?= $this->include('{clean_path}') ?>"
 
             content = content.replace(frag["full"], replacement)
 
         return content
 
-    def _rename_hyphens_to_underscores(self, ignore_list=None):
-        if ignore_list is None:
-            ignore_list = []
 
-        for dirpath, dirnames, filenames in os.walk(self.project_pages_path, topdown=False):
-            # Rename files
-            for name in filenames:
-                if name in ignore_list:
-                    continue
-                if "-" in name:
-                    src = Path(dirpath) / name
-                    dst_name = name.replace("-", "_")
-                    if dst_name in ignore_list:
-                        continue
-                    dst = Path(dirpath) / dst_name
-                    src.rename(dst)
-
-            # Rename directories
-            for name in dirnames:
-                if name in ignore_list:
-                    continue
-                if "-" in name:
-                    src = Path(dirpath) / name
-                    dst_name = name.replace("-", "_")
-                    if dst_name in ignore_list:
-                        continue
-                    dst = Path(dirpath) / dst_name
-                    src.rename(dst)
-
-
-class CakePHPGulpConverter(BaseCakePHPConverter):
+class CodeIgniterGulpConverter(BaseCodeIgniterConverter):
     def __init__(self, config: ProjectConfig):
         super().__init__(config)
 
@@ -210,7 +176,7 @@ class CakePHPGulpConverter(BaseCakePHPConverter):
         self.init_create_project()
 
         if self.config.asset_paths:
-            copy_assets(self.config.asset_paths, self.config.project_assets_path, preserve=CAKEPHP_ASSETS_PRESERVE)
+            copy_assets(self.config.asset_paths, self.config.project_assets_path, preserve=CODEIGNITER_ASSETS_PRESERVE)
             replace_asset_paths(self.config.project_assets_path, '')
 
         add_gulpfile(self.config)
@@ -222,9 +188,9 @@ class CakePHPGulpConverter(BaseCakePHPConverter):
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
-class CakePHPConverter:
+class CodeIgniterConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
         if self.config.frontend_pipeline == "gulp":
-            CakePHPGulpConverter(self.config).create_project()
+            CodeIgniterGulpConverter(self.config).create_project()

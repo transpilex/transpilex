@@ -13,7 +13,8 @@ from transpilex.config.base import (
     CORE_PARTIALS_PATH, CORE_VARIABLE_REPLACEMENT, CORE_VITE_ASSETS_PATH, MVC_EXTENSION, MVC_ASSETS_PATH,
     MVC_VITE_ASSETS_PATH, MVC_PARTIALS_PATH, MVC_VARIABLE_REPLACEMENT, ROR_VITE_ASSETS_FOLDER, ROR_ASSETS_FOLDER,
     ROR_PARTIALS_PATH, ROR_VARIABLE_REPLACEMENT, ROR_EXTENSION, CAKEPHP_ASSETS_FOLDER, CAKEPHP_PARTIALS_PATH,
-    CAKEPHP_VARIABLE_REPLACEMENT, CAKEPHP_EXTENSION
+    CAKEPHP_VARIABLE_REPLACEMENT, CAKEPHP_EXTENSION, CODEIGNITER_ASSETS_FOLDER, CODEIGNITER_PARTIALS_PATH,
+    CODEIGNITER_VARIABLE_REPLACEMENT, CODEIGNITER_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -64,7 +65,7 @@ def ask_project_config():
         validate=is_valid_project_name,
         style=fresh_style,
         qmark=CUSTOM_QMARK,
-        default="inspinia"
+        default="dhonu"
     ).ask())
 
     framework = safe_ask(questionary.select(
@@ -136,9 +137,12 @@ def ask_project_config():
         only_directories=True
     ).ask())
 
-    new_dest_path = Path(dest_path) / framework.lower()
-
-    project_root_path = Path(new_dest_path / project_name)
+    if framework in ['Core', 'MVC']:
+        new_dest_path = Path(dest_path) / framework.title()
+        project_root_path = Path(new_dest_path / project_name.title())
+    else:
+        new_dest_path = Path(dest_path) / framework.lower()
+        project_root_path = Path(new_dest_path / project_name)
 
     if folder_exists(project_root_path):
         Log.error(f"Project already exists at: {project_root_path}")
@@ -209,6 +213,12 @@ def ask_project_config():
         project_partials_path = CAKEPHP_PARTIALS_PATH
         variable_replacement = CAKEPHP_VARIABLE_REPLACEMENT
         file_extension = CAKEPHP_EXTENSION
+
+    elif framework == "codeigniter":
+        project_assets_path = CODEIGNITER_ASSETS_FOLDER
+        project_partials_path = CODEIGNITER_PARTIALS_PATH
+        variable_replacement = CODEIGNITER_VARIABLE_REPLACEMENT
+        file_extension = CODEIGNITER_EXTENSION
 
     else:
         project_assets_path = None

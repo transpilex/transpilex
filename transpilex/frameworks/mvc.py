@@ -124,6 +124,8 @@ class BaseMVCConverter:
             if html_attr_line:
                 viewbag_blocks.append(html_attr_line)
 
+            original_content = original_content.replace("&#64;", "__AT__")
+
             soup = BeautifulSoup(original_content, "html.parser")
 
             is_partial = "Partials" in file.parts or "Shared" in file.parts
@@ -139,6 +141,7 @@ class BaseMVCConverter:
                     out = self._convert_script_src_for_vite(out)
 
                 out = self._replace_anchor_links_with_routes(out, self.route_map)
+                out = out.replace("__AT__", "&#64;")
                 file.write_text(out, encoding="utf-8")
 
                 Log.converted(f"{file}")
@@ -203,13 +206,14 @@ class BaseMVCConverter:
 @section Scripts {{
 {scripts_html}
 }}"""
-            final = self._convert_script_src_for_vite(final)
+
             final = self._replace_anchor_links_with_routes(final, self.route_map)
             final = clean_relative_asset_paths(final)
 
             if self.config.frontend_pipeline == "vite":
                 final = self._convert_script_src_for_vite(final)
 
+            final = final.replace("__AT__", "&#64;")
             file.write_text(final.strip() + "\n", encoding="utf-8")
             Log.converted(str(file))
             count += 1
@@ -668,18 +672,6 @@ namespace {self.project_name}.Controllers
         return viewbag_line
 
     def _convert_script_src_for_vite(self, html_content: str):
-        """
-        Convert all relative <script src="..."> paths (./, ../, assets/, js/, scripts/)
-        into Vite-compatible format:
-            <script type="module" vite-src="~/dist/Assets/..."></script>
-
-        Rules:
-        - Handles ../, ./, assets/, js/, scripts/
-        - Ensures `type="module"`
-        - Removes duplicate 'Assets' and '/~'
-        - Skips inline and external URLs
-        """
-
         try:
             soup = BeautifulSoup(html_content, "html.parser")
         except Exception:
@@ -688,37 +680,38 @@ namespace {self.project_name}.Controllers
         for script_tag in soup.find_all("script", src=True):
             src_val = script_tag["src"].strip()
 
-            # Skip external URLs or already converted scripts
+            # Skip external or already-converted
             if script_tag.has_attr("vite-src") or src_val.startswith(("http://", "https://", "//")):
                 continue
 
-            # --- Normalize path base ---
-            # Remove leading ./ or ../ segments
+            # Remove leading ./ or ../
             normalized = re.sub(r"^(\.\./|\./)+", "", src_val)
+            normalized = normalized.lstrip("/")
 
-            # Standardize folder names (convert 'scripts/' or 'js/' to 'Assets/js/')
-            # Also normalize all to "Assets/" base
-            if normalized.lower().startswith("assets/"):
-                normalized_path = "Assets/" + normalized[7:]
-            elif normalized.lower().startswith(("js/", "scripts/")):
-                normalized_path = "Assets/" + normalized
-            else:
-                # Fallback for anything else like "plugins/fullcalendar"
-                normalized_path = "Assets/" + normalized
+            lower = normalized.lower()
 
-            # Remove duplicated "Assets/Assets/"
-            normalized_path = re.sub(r"(Assets/)+", "Assets/", normalized_path, flags=re.IGNORECASE)
+            # Strip ANY leading assets/, js/, scripts/
+            if lower.startswith("assets/"):
+                normalized = normalized[7:]
+            elif lower.startswith("js/"):
+                normalized = normalized[3:]
+            elif lower.startswith("scripts/"):
+                normalized = normalized[8:]
 
-            # Construct Vite path
-            vite_src = f"~/dist/{normalized_path}"
+            # Build clean path
+            normalized_path = f"Assets/{normalized}"
 
-            # Update attributes
-            script_tag["vite-src"] = vite_src
+            # Remove accidental double slashes
+            normalized_path = re.sub(r"/+", "/", normalized_path)
+
+            # Placeholder (avoid BS rewriting "~")
+            vite_placeholder = f"__VITE_PREFIX__{normalized_path}"
+            script_tag["vite-src"] = vite_placeholder
             script_tag["type"] = "module"
             del script_tag["src"]
 
-        # Fix BeautifulSoup's unwanted '/~' escaping
-        html_fixed = str(soup).replace("/~", "~")
+        html_fixed = str(soup)
+        html_fixed = html_fixed.replace("__VITE_PREFIX__", "~/dist/")
 
         return html_fixed
 

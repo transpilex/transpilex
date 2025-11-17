@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup, NavigableString
 
 from transpilex.config.base import DJANGO_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_assets
+from transpilex.utils.assets import copy_assets, replace_asset_paths
 from transpilex.utils.file import file_exists, find_files_with_extension, copy_and_change_extension, move_files, \
     copy_items
 from transpilex.utils.gulpfile import has_plugins_config
@@ -402,6 +402,7 @@ class DjangoGulpConverter(BaseDjangoConverter):
         self.init_create_project()
 
         has_plugins_config(self.config)
+        replace_asset_paths(self.config.project_assets_path, '/static')
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 

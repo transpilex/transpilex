@@ -55,10 +55,11 @@ const plugins = function () {{
         }}
 
         if (vendorCSS) {{
-            src(vendorCSS)
-                .pipe(concat("vendors.min.css"))
-                .on('error', handleError('vendorCSS'))
-                .pipe(dest(paths.baseDistAssets + "/css/"));
+          src(vendorCSS)
+            .pipe(concat("vendors.min.css"))
+            .on('error', handleError('vendorCSS'))
+            .pipe(replace(/url\\((['"]?)(remixicon|boxicons)/g, "url($1fonts/$2"))
+            .pipe(dest(paths.baseDistAssets + "/css/"));
         }}
 
         if (vendorFonts) {{
@@ -285,6 +286,7 @@ const postcss = require('gulp-postcss');
 const rename = require('gulp-rename');
 const gulUglifyES = require('gulp-uglify-es');
 const npmdist = require('gulp-npm-dist');
+const replace = require('gulp-replace');
 {imports}
 
 {plugins_import}

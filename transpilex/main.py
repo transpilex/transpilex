@@ -3,6 +3,7 @@ from pathlib import Path
 from transpilex.cli.prompts import ask_project_config
 from transpilex.config.project import ProjectConfig
 from transpilex.frameworks.cakephp import CakePHPConverter
+from transpilex.frameworks.codeigniter import CodeIgniterConverter
 from transpilex.frameworks.core import CoreConverter
 from transpilex.frameworks.django import DjangoConverter
 from transpilex.frameworks.laravel import LaravelConverter
@@ -52,3 +53,5 @@ def main():
         RorConverter(config)
     elif project_config["framework"] == "cakephp":
         CakePHPConverter(config)
+    elif project_config["framework"] == "codeigniter":
+        CodeIgniterConverter(config)
