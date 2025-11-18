@@ -366,61 +366,54 @@ class BaseMVCConverter:
             return "/"
 
     def _replace_anchor_links_with_routes(self, html_content: str, route_map: dict[str, str]):
-        """
-        Converts <a href="apps-email-inbox.html"> → <a asp-controller="Email" asp-action="Inbox">
-        Handles:
-        - Special case: index.html → href="/"
-        - Fragment-only hrefs (#section) → untouched (no '/#section')
-        - Proper PascalCase controller/action
-        - Never adds slashes automatically
-        """
-
         soup = BeautifulSoup(html_content, "html.parser")
-        changed = False
 
         for a in soup.find_all("a", href=True):
             href = a["href"].strip()
-
-            # leave fragment links untouched (e.g., #invoice)
-            if href.startswith("#"):
-                continue
-
-            # Handle special case for index.html
             href_clean = href.lstrip("/").lower()
-            if href_clean in ("index.html", "./index.html"):
+
+            if href_clean.endswith("index.html"):
                 a["href"] = "/"
                 continue
 
-            # Find match from route_map (case-insensitive)
+            if href.startswith("#"):
+                continue
+
+            # Route lookup
             key = next(
-                (k for k in route_map.keys() if k.lower().strip("/").endswith(href_clean)),
+                (k for k in route_map.keys()
+                 if k.lower().strip("/").endswith(href_clean)),
                 None
             )
+
             if not key:
                 continue
 
             route = route_map[key].strip("/")
             parts = [p for p in route.split("/") if p]
+
             if len(parts) < 2:
                 continue
 
             controller, action = parts[-2], parts[-1]
 
-            # PascalCase both names
             controller = self._to_pascal(controller.split("\\")[-1])
             action = self._to_pascal(action)
 
-            # Replace href with asp attributes
+            # Replace href → asp-controller/action
             del a["href"]
             a["asp-controller"] = controller
             a["asp-action"] = action
-            changed = True
 
-        # Prevent BeautifulSoup from rewriting fragment links as "/#..."
-        html_out = str(soup)
-        html_out = html_out.replace('href="/#', 'href="#')
+        out = str(soup)
 
-        return html_out if changed else html_content
+        out = out.replace('href="/index.html"', 'href="/"')
+        out = out.replace('href="index.html"', 'href="/"')
+
+        out = out.replace('href="/#', 'href="#')
+        out = out.replace('href="/javascript:void(0);', 'href="javascript:void(0);')
+
+        return out
 
     def _create_controllers(self, ignore_list=None):
         """

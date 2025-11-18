@@ -413,23 +413,28 @@ namespace {namespace}
 }}"""
 
     def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]):
-        """
-        Replace <a href="filename.html"> links with route URLs from the route map.
-        """
-
         pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
 
         def repl(match):
-            href_val = match.group("href")  # e.g., "auth-lock-screen.html"
-            href_file = Path(href_val).name  # just filename.html
+            href_val = match.group("href")
+            href_file = Path(href_val).name
+
             if href_file in route_map:
-                route_path = route_map[href_file]  # e.g., "/auth/lock-screen"
+                route_path = route_map[href_file]
+
                 if route_path == "/index":
-                    return f"href=\"/\""
-                return f"href=\"{route_path}\""
+                    return 'href="/"'
+
+                return f'href="{route_path}"'
+
             return match.group(0)
 
-        return pattern.sub(repl, content)
+        content = pattern.sub(repl, content)
+
+        content = content.replace('href="/#', 'href="#')
+        content = content.replace('href="/javascript:void(0);', 'href="javascript:void(0);')
+
+        return content
 
     def _normalize_partials_folder(self):
         """

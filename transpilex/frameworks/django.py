@@ -11,7 +11,7 @@ from transpilex.utils.file import file_exists, find_files_with_extension, copy_a
     copy_items
 from transpilex.utils.gulpfile import has_plugins_config
 from transpilex.utils.logs import Log
-from transpilex.utils.package_json import  sync_package_json
+from transpilex.utils.package_json import sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 
 
@@ -262,7 +262,7 @@ class BaseDjangoConverter:
 
         return content
 
-    def _parse_include_params(self, params_str: str) -> dict:
+    def _parse_include_params(self, params_str: str):
         """
         Parses include parameters from various formats:
           - {"title": "Home", "subtitle": "Dashboard"}
@@ -295,7 +295,7 @@ class BaseDjangoConverter:
             Log.warning(f"Failed to parse key=value include params: {params_str} ({e})")
             return {}
 
-    def _replace_asset_links_with_static(self, html: str) -> str:
+    def _replace_asset_links_with_static(self, html: str):
         """
         Rewrites asset paths in src, href, and inline/background-image URLs
         to use Django {% static %} or {% vite_asset %} tags.

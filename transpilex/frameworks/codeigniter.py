@@ -1,10 +1,8 @@
-import os
 import json
 import re
 import subprocess
 import html
 from pathlib import Path
-
 from bs4 import BeautifulSoup, NavigableString
 
 from transpilex.config.base import CODEIGNITER_ASSETS_PRESERVE, CODEIGNITER_PROJECT_CREATION_COMMAND

@@ -1,4 +1,4 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR", "CakePHP", "Codeigniter"]
+SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR", "CakePHP", "Codeigniter", "Node", "Flask"]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -80,7 +80,9 @@ FOLDERS = {
     "map", "maps",
     "utilities",
     "navigation",
-    "landing"
+    "landing",
+    "invoices",
+    "contacts"
 }
 
 # No further nesting will take place inside these folders
@@ -98,26 +100,26 @@ NO_NESTING_FOLDERS = {
 }
 
 # PHP
-PHP_EXTENSION = '.php'
+PHP_EXTENSION = ".php"
 PHP_ASSETS_PATH = "src/assets"
 PHP_PARTIALS_PATH = "src/partials"
 
 PHP_VITE_ASSETS_PATH = "src"
 PHP_VITE_PARTIALS_PATH = "partials"
-PHP_VITE_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/php-vite-boilerplate.git', '.']
+PHP_VITE_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/php-vite-boilerplate.git", "."]
 
-PHP_VARIABLE_REPLACEMENT = r'<?php echo ($\1); ?>'
+PHP_VARIABLE_REPLACEMENT = r"<?php echo ($\1); ?>"
 
 # Laravel
-LARAVEL_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/laravel-boilerplate.git', '.']
-LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = ['git', 'clone',
-                                              'https://github.com/transpilex/laravel-boilerplate-with-auth.git', '.']
+LARAVEL_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/laravel-boilerplate.git", "."]
+LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = ["git", "clone",
+                                              "https://github.com/transpilex/laravel-boilerplate-with-auth.git", "."]
 LARAVEL_EXTENSION = ".blade.php"
 LARAVEL_ASSETS_PATH = "resources"
 LARAVEL_PARTIALS_PATH = "resources/views/partials"
 LARAVEL_RESOURCES_PRESERVE = ["views"]
 
-LARAVEL_VARIABLE_REPLACEMENT = r'{{ $\1 }}'
+LARAVEL_VARIABLE_REPLACEMENT = r"{{ $\1 }}"
 
 # Django
 DJANGO_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-django.git"
@@ -125,60 +127,88 @@ DJANGO_EXTENSION = ".html"
 DJANGO_ASSETS_PATH = "static"
 DJANGO_PARTIALS_PATH = "templates/partials"
 
-DJANGO_VARIABLE_REPLACEMENT = r'{{ \1 }}'
+DJANGO_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 
 # Dot Net
 SLN_FILE_CREATION_COMMAND = "dotnet new sln -n"
 
 # Core
-CORE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/core-boilerplate.git', '.']
-CORE_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/core-vite-boilerplate.git', '.']
+CORE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/core-boilerplate.git", "."]
+CORE_VITE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/core-vite-boilerplate.git", "."]
 CORE_EXTENSION = ".cshtml"
 CORE_ADDITIONAL_EXTENSION = ".cshtml.cs"
 CORE_ASSETS_PATH = "wwwroot"
 CORE_VITE_ASSETS_PATH = "Assets"
 CORE_PARTIALS_PATH = "Pages/Shared/Partials"
-CORE_VARIABLE_REPLACEMENT = r'@\1'
+CORE_VARIABLE_REPLACEMENT = r"@\1"
 
 # MVC
-MVC_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/mvc-boilerplate.git', '.']
-MVC_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/mvc-vite-boilerplate.git', '.']
+MVC_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/mvc-boilerplate.git", "."]
+MVC_VITE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/mvc-vite-boilerplate.git", "."]
 MVC_EXTENSION = ".cshtml"
 MVC_ASSETS_PATH = "wwwroot"
 MVC_VITE_ASSETS_PATH = "Assets"
 MVC_PARTIALS_PATH = "Views/Shared/Partials"
-MVC_VARIABLE_REPLACEMENT = r'@\1'
-
-# Node
-NODE_EXTENSION = '.ejs'
-NODE_ASSETS_FOLDER = 'public'
-NODE_VARIABLE_REPLACEMENT = r'<%- \1 %>'
+MVC_VARIABLE_REPLACEMENT = r"@\1"
 
 # RoR
-ROR_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/ror-boilerplate.git', '.']
-ROR_VITE_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/ror-vite-boilerplate.git', '.']
-ROR_EXTENSION = '.html.erb'
-ROR_ASSETS_FOLDER = 'public'
-ROR_VITE_ASSETS_FOLDER = 'frontend'
+ROR_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/ror-boilerplate.git", "."]
+ROR_VITE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/ror-vite-boilerplate.git", "."]
+ROR_EXTENSION = ".html.erb"
+ROR_ASSETS_PATH = "public"
+ROR_VITE_ASSETS_PATH = "frontend"
 ROR_PARTIALS_PATH = "app/views/layouts/partials"
-ROR_VARIABLE_REPLACEMENT = r'<%= \1 %>'
+ROR_VARIABLE_REPLACEMENT = r"<%= \1 %>"
 ROR_TAILWIND_PLUGINS = '\ngem "tailwindcss-ruby", "~> 4.1"\n gem "tailwindcss-rails", "~> 4.4"\n'
 
 # CakePHP
-CAKEPHP_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/cakephp-boilerplate.git', '.']
-CAKEPHP_EXTENSION = '.php'
-CAKEPHP_ASSETS_FOLDER = 'webroot'
+CAKEPHP_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/cakephp-boilerplate.git", "."]
+CAKEPHP_EXTENSION = ".php"
+CAKEPHP_ASSETS_PATH = "webroot"
 CAKEPHP_PARTIALS_PATH = "templates/element"
-CAKEPHP_VARIABLE_REPLACEMENT = r'<?= $\1 ?>'
+CAKEPHP_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CAKEPHP_ASSETS_PRESERVE = ["index.php", ".htaccess"]
 
 # Codeigniter
-CODEIGNITER_PROJECT_CREATION_COMMAND = ['git', 'clone', 'https://github.com/transpilex/codeigniter-boilerplate.git', '.']
-CODEIGNITER_EXTENSION = '.php'
-CODEIGNITER_ASSETS_FOLDER = 'public'
+CODEIGNITER_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/codeigniter-boilerplate.git",
+                                        "."]
+CODEIGNITER_EXTENSION = ".php"
+CODEIGNITER_ASSETS_PATH = "public"
 CODEIGNITER_PARTIALS_PATH = "app/Views"
-CODEIGNITER_VARIABLE_REPLACEMENT = r'<?= $\1 ?>'
+CODEIGNITER_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CODEIGNITER_ASSETS_PRESERVE = ["index.php", ".htaccess", "manifest.json", "robots.txt"]
+
+# Node
+NODE_EXTENSION = ".ejs"
+NODE_ASSETS_PATH = "public"
+NODE_PARTIALS_PATH = "views"
+NODE_VARIABLE_REPLACEMENT = r"<%- \1 %>"
+NODE_DEPENDENCIES = {
+    "cookie-parser": "^1.4.7",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-ejs-layouts": "^2.5.1",
+    "express-fileupload": "^1.5.2",
+    "express-session": "^1.18.2",
+    "nodemon": "^3.1.11",
+    "npm-run-all": "^4.1.5",
+    "path": "^0.12.7"
+}
+
+# Flask
+FLASK_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/flask-boilerplate.git", "."]
+FLASK_PROJECT_CREATION_COMMAND_AUTH = ["git", "clone", "https://github.com/transpilex/flask-boilerplate-with-auth.git",
+                                       "."]
+FLASK_EXTENSION = ".html"
+FLASK_ASSETS_PATH = "apps/static"
+FLASK_PARTIALS_PATH = "apps/templates/partials"
+FLASK_VARIABLE_REPLACEMENT = r"{{ \1 }}"
+
+# Symfony
+SYMFONY_EXTENSION = ".html.twig"
+SYMFONY_ASSETS_PATH = "public"
+SYMFONY_PARTIALS_PATH = "templates/partials"
+SYMFONY_ASSETS_PRESERVE = ["index.php"]
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

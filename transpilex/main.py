@@ -6,8 +6,10 @@ from transpilex.frameworks.cakephp import CakePHPConverter
 from transpilex.frameworks.codeigniter import CodeIgniterConverter
 from transpilex.frameworks.core import CoreConverter
 from transpilex.frameworks.django import DjangoConverter
+from transpilex.frameworks.flask import FlaskConverter
 from transpilex.frameworks.laravel import LaravelConverter
 from transpilex.frameworks.mvc import MVCConverter
+from transpilex.frameworks.node import NodeConverter
 from transpilex.frameworks.php import PHPConverter
 from transpilex.frameworks.ror import RorConverter
 from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
@@ -55,3 +57,7 @@ def main():
         CakePHPConverter(config)
     elif project_config["framework"] == "codeigniter":
         CodeIgniterConverter(config)
+    elif project_config["framework"] == "node":
+        NodeConverter(config)
+    elif project_config["framework"] == "flask":
+        FlaskConverter(config)

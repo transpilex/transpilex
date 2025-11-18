@@ -148,7 +148,7 @@ class PHPGulpConverter(BasePHPConverter):
     def create_project(self):
         Log.project_start(self.config.project_name)
 
-        files = find_files_with_extension(self.config.pages_path, "html")
+        files = find_files_with_extension(self.config.pages_path)
         copy_and_change_extension(files, self.config.pages_path, self.project_src_path, self.config.file_extension)
 
         self._convert(self.project_src_path)

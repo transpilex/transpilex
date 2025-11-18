@@ -11,10 +11,12 @@ from transpilex.config.base import (
     LARAVEL_PARTIALS_PATH, LARAVEL_VARIABLE_REPLACEMENT, LARAVEL_EXTENSION, GULP_PLUGINS_FOLDER, DJANGO_EXTENSION,
     DJANGO_ASSETS_PATH, DJANGO_PARTIALS_PATH, DJANGO_VARIABLE_REPLACEMENT, CORE_EXTENSION, CORE_ASSETS_PATH,
     CORE_PARTIALS_PATH, CORE_VARIABLE_REPLACEMENT, CORE_VITE_ASSETS_PATH, MVC_EXTENSION, MVC_ASSETS_PATH,
-    MVC_VITE_ASSETS_PATH, MVC_PARTIALS_PATH, MVC_VARIABLE_REPLACEMENT, ROR_VITE_ASSETS_FOLDER, ROR_ASSETS_FOLDER,
-    ROR_PARTIALS_PATH, ROR_VARIABLE_REPLACEMENT, ROR_EXTENSION, CAKEPHP_ASSETS_FOLDER, CAKEPHP_PARTIALS_PATH,
-    CAKEPHP_VARIABLE_REPLACEMENT, CAKEPHP_EXTENSION, CODEIGNITER_ASSETS_FOLDER, CODEIGNITER_PARTIALS_PATH,
-    CODEIGNITER_VARIABLE_REPLACEMENT, CODEIGNITER_EXTENSION
+    MVC_VITE_ASSETS_PATH, MVC_PARTIALS_PATH, MVC_VARIABLE_REPLACEMENT, ROR_VITE_ASSETS_PATH, ROR_ASSETS_PATH,
+    ROR_PARTIALS_PATH, ROR_VARIABLE_REPLACEMENT, ROR_EXTENSION, CAKEPHP_ASSETS_PATH, CAKEPHP_PARTIALS_PATH,
+    CAKEPHP_VARIABLE_REPLACEMENT, CAKEPHP_EXTENSION, CODEIGNITER_ASSETS_PATH, CODEIGNITER_PARTIALS_PATH,
+    CODEIGNITER_VARIABLE_REPLACEMENT, CODEIGNITER_EXTENSION, NODE_VARIABLE_REPLACEMENT, NODE_EXTENSION,
+    NODE_PARTIALS_PATH, NODE_ASSETS_PATH, FLASK_ASSETS_PATH, FLASK_PARTIALS_PATH, FLASK_VARIABLE_REPLACEMENT,
+    FLASK_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -201,24 +203,36 @@ def ask_project_config():
 
     elif framework == "ror":
         if frontend_pipeline == "gulp":
-            project_assets_path = ROR_ASSETS_FOLDER
+            project_assets_path = ROR_ASSETS_PATH
         else:
-            project_assets_path = ROR_VITE_ASSETS_FOLDER
+            project_assets_path = ROR_VITE_ASSETS_PATH
         project_partials_path = ROR_PARTIALS_PATH
         variable_replacement = ROR_VARIABLE_REPLACEMENT
         file_extension = ROR_EXTENSION
 
     elif framework == "cakephp":
-        project_assets_path = CAKEPHP_ASSETS_FOLDER
+        project_assets_path = CAKEPHP_ASSETS_PATH
         project_partials_path = CAKEPHP_PARTIALS_PATH
         variable_replacement = CAKEPHP_VARIABLE_REPLACEMENT
         file_extension = CAKEPHP_EXTENSION
 
     elif framework == "codeigniter":
-        project_assets_path = CODEIGNITER_ASSETS_FOLDER
+        project_assets_path = CODEIGNITER_ASSETS_PATH
         project_partials_path = CODEIGNITER_PARTIALS_PATH
         variable_replacement = CODEIGNITER_VARIABLE_REPLACEMENT
         file_extension = CODEIGNITER_EXTENSION
+
+    elif framework == "node":
+        project_assets_path = NODE_ASSETS_PATH
+        project_partials_path = NODE_PARTIALS_PATH
+        variable_replacement = NODE_VARIABLE_REPLACEMENT
+        file_extension = NODE_EXTENSION
+
+    elif framework == "flask":
+        project_assets_path = FLASK_ASSETS_PATH
+        project_partials_path = FLASK_PARTIALS_PATH
+        variable_replacement = FLASK_VARIABLE_REPLACEMENT
+        file_extension = FLASK_EXTENSION
 
     else:
         project_assets_path = None
