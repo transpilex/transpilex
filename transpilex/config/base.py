@@ -1,4 +1,16 @@
-SUPPORTED_FRAMEWORKS = ["PHP", "Laravel", "Django", "Core", "MVC", "RoR", "CakePHP", "Codeigniter", "Node", "Flask"]
+SUPPORTED_FRAMEWORKS = [
+    "PHP",
+    "Laravel",
+    "Django",
+    "Core",
+    "MVC",
+    "RoR",
+    "CakePHP",
+    "Codeigniter",
+    "Node",
+    "Flask",
+    "Symfony",
+]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
 DEFAULT_PIPELINE = "Gulp"
@@ -32,7 +44,7 @@ GULP_DEV_DEPENDENCIES = {
     "node-sass-tilde-importer": "^1.0.2",
     "pixrem": "^5.0.0",
     "postcss": "^8.3.11",
-    "sass": "1.77.6"
+    "sass": "1.77.6",
 }
 
 GULP_TW_DEV_DEPENDENCIES = {
@@ -48,55 +60,102 @@ GULP_TW_DEV_DEPENDENCIES = {
     "gulp-uglify-es": "^3.0.0",
     "pixrem": "^5.0.0",
     "postcss": "^8.3.11",
-    "tailwindcss": "^4.0.7"
+    "tailwindcss": "^4.0.7",
 }
 
-VITE_DEV_DEPENDENCIES = {
-    "sass": "1.77.6"
-}
+VITE_DEV_DEPENDENCIES = {"sass": "1.77.6"}
 
-VITE_TW_DEV_DEPENDENCIES = {
-    "@tailwindcss/vite": "^4.0.7"
-}
+VITE_TW_DEV_DEPENDENCIES = {"@tailwindcss/vite": "^4.0.7"}
 
 PUBLIC_ONLY_ASSETS = ["images", "img", "media", "data", "json"]
 
 # For generating folder structure
 FOLDERS = {
-    "dashboard", "dashboards",
-    "apps", "ecommerce", "hr", "project", "promo", "task", "users", "projects", "blog", "ticket", "forum", "crm",
-    "email", "finance", "hospital", "hrm", "invoice", "pos",
+    "dashboard",
+    "dashboards",
+    "apps",
+    "ecommerce",
+    "hr",
+    "project",
+    "promo",
+    "task",
+    "users",
+    "projects",
+    "blog",
+    "ticket",
+    "forum",
+    "crm",
+    "email",
+    "finance",
+    "hospital",
+    "hrm",
+    "invoice",
+    "pos",
     "pages",
     "misc",
     "plugins",
-    "auth", "auth-2", "auth-3", "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern",
+    "auth",
+    "auth-2",
+    "auth-3",
+    "auth-card",
+    "auth-split",
+    "auth-basic",
+    "auth-cover",
+    "auth-boxed",
+    "auth-modern",
     "error",
-    "layouts", "sidebar", "topbar", "sidenav",
-    "ui", "base-ui",
-    "form", "forms",
-    "chart", "charts", "apex", "echart", "chartjs",
-    "table", "tables", "datatables",
-    "icon", "icons",
-    "map", "maps",
+    "layouts",
+    "sidebar",
+    "topbar",
+    "sidenav",
+    "ui",
+    "base-ui",
+    "form",
+    "forms",
+    "chart",
+    "charts",
+    "apex",
+    "echart",
+    "chartjs",
+    "table",
+    "tables",
+    "datatables",
+    "icon",
+    "icons",
+    "map",
+    "maps",
     "utilities",
     "navigation",
     "landing",
     "invoices",
-    "contacts"
+    "contacts",
 }
 
 # No further nesting will take place inside these folders
 NO_NESTING_FOLDERS = {
-    "dashboard", "dashboards",
+    "dashboard",
+    "dashboards",
     "pages",
     "misc",
     "plugins",
-    "auth", "auth-2", "auth-3", "auth-card", "auth-split", "auth-basic", "auth-cover", "auth-boxed", "auth-modern",
+    "auth",
+    "auth-2",
+    "auth-3",
+    "auth-card",
+    "auth-split",
+    "auth-basic",
+    "auth-cover",
+    "auth-boxed",
+    "auth-modern",
     "error",
-    "ui", "base-ui",
-    "form", "forms",
-    "icon", "icons",
-    "map", "maps",
+    "ui",
+    "base-ui",
+    "form",
+    "forms",
+    "icon",
+    "icons",
+    "map",
+    "maps",
 }
 
 # PHP
@@ -106,14 +165,28 @@ PHP_PARTIALS_PATH = "src/partials"
 
 PHP_VITE_ASSETS_PATH = "src"
 PHP_VITE_PARTIALS_PATH = "partials"
-PHP_VITE_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/php-vite-boilerplate.git", "."]
+PHP_VITE_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/php-vite-boilerplate.git",
+    ".",
+]
 
 PHP_VARIABLE_REPLACEMENT = r"<?php echo ($\1); ?>"
 
 # Laravel
-LARAVEL_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/laravel-boilerplate.git", "."]
-LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = ["git", "clone",
-                                              "https://github.com/transpilex/laravel-boilerplate-with-auth.git", "."]
+LARAVEL_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/laravel-boilerplate.git",
+    ".",
+]
+LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/laravel-boilerplate-with-auth.git",
+    ".",
+]
 LARAVEL_EXTENSION = ".blade.php"
 LARAVEL_ASSETS_PATH = "resources"
 LARAVEL_PARTIALS_PATH = "resources/views/partials"
@@ -133,8 +206,18 @@ DJANGO_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 SLN_FILE_CREATION_COMMAND = "dotnet new sln -n"
 
 # Core
-CORE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/core-boilerplate.git", "."]
-CORE_VITE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/core-vite-boilerplate.git", "."]
+CORE_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/core-boilerplate.git",
+    ".",
+]
+CORE_VITE_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/core-vite-boilerplate.git",
+    ".",
+]
 CORE_EXTENSION = ".cshtml"
 CORE_ADDITIONAL_EXTENSION = ".cshtml.cs"
 CORE_ASSETS_PATH = "wwwroot"
@@ -143,8 +226,18 @@ CORE_PARTIALS_PATH = "Pages/Shared/Partials"
 CORE_VARIABLE_REPLACEMENT = r"@\1"
 
 # MVC
-MVC_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/mvc-boilerplate.git", "."]
-MVC_VITE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/mvc-vite-boilerplate.git", "."]
+MVC_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/mvc-boilerplate.git",
+    ".",
+]
+MVC_VITE_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/mvc-vite-boilerplate.git",
+    ".",
+]
 MVC_EXTENSION = ".cshtml"
 MVC_ASSETS_PATH = "wwwroot"
 MVC_VITE_ASSETS_PATH = "Assets"
@@ -152,17 +245,34 @@ MVC_PARTIALS_PATH = "Views/Shared/Partials"
 MVC_VARIABLE_REPLACEMENT = r"@\1"
 
 # RoR
-ROR_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/ror-boilerplate.git", "."]
-ROR_VITE_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/ror-vite-boilerplate.git", "."]
+ROR_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/ror-boilerplate.git",
+    ".",
+]
+ROR_VITE_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/ror-vite-boilerplate.git",
+    ".",
+]
 ROR_EXTENSION = ".html.erb"
 ROR_ASSETS_PATH = "public"
 ROR_VITE_ASSETS_PATH = "frontend"
 ROR_PARTIALS_PATH = "app/views/layouts/partials"
 ROR_VARIABLE_REPLACEMENT = r"<%= \1 %>"
-ROR_TAILWIND_PLUGINS = '\ngem "tailwindcss-ruby", "~> 4.1"\n gem "tailwindcss-rails", "~> 4.4"\n'
+ROR_TAILWIND_PLUGINS = (
+    '\ngem "tailwindcss-ruby", "~> 4.1"\n gem "tailwindcss-rails", "~> 4.4"\n'
+)
 
 # CakePHP
-CAKEPHP_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/cakephp-boilerplate.git", "."]
+CAKEPHP_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/cakephp-boilerplate.git",
+    ".",
+]
 CAKEPHP_EXTENSION = ".php"
 CAKEPHP_ASSETS_PATH = "webroot"
 CAKEPHP_PARTIALS_PATH = "templates/element"
@@ -170,8 +280,12 @@ CAKEPHP_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CAKEPHP_ASSETS_PRESERVE = ["index.php", ".htaccess"]
 
 # Codeigniter
-CODEIGNITER_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/codeigniter-boilerplate.git",
-                                        "."]
+CODEIGNITER_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/codeigniter-boilerplate.git",
+    ".",
+]
 CODEIGNITER_EXTENSION = ".php"
 CODEIGNITER_ASSETS_PATH = "public"
 CODEIGNITER_PARTIALS_PATH = "app/Views"
@@ -192,22 +306,38 @@ NODE_DEPENDENCIES = {
     "express-session": "^1.18.2",
     "nodemon": "^3.1.11",
     "npm-run-all": "^4.1.5",
-    "path": "^0.12.7"
+    "path": "^0.12.7",
 }
 
 # Flask
-FLASK_PROJECT_CREATION_COMMAND = ["git", "clone", "https://github.com/transpilex/flask-boilerplate.git", "."]
-FLASK_PROJECT_CREATION_COMMAND_AUTH = ["git", "clone", "https://github.com/transpilex/flask-boilerplate-with-auth.git",
-                                       "."]
+FLASK_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/flask-boilerplate.git",
+    ".",
+]
+FLASK_PROJECT_CREATION_COMMAND_AUTH = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/flask-boilerplate-with-auth.git",
+    ".",
+]
 FLASK_EXTENSION = ".html"
 FLASK_ASSETS_PATH = "apps/static"
 FLASK_PARTIALS_PATH = "apps/templates/partials"
 FLASK_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 
 # Symfony
+SYMFONY_PROJECT_CREATION_COMMAND = [
+    "git",
+    "clone",
+    "https://github.com/transpilex/symfony-boilerplate.git",
+    ".",
+]
 SYMFONY_EXTENSION = ".html.twig"
 SYMFONY_ASSETS_PATH = "public"
 SYMFONY_PARTIALS_PATH = "templates/partials"
+SYMFONY_VARIABLE_REPLACEMENT = r"{{ (\1) ? \1 : '' }}"
 SYMFONY_ASSETS_PRESERVE = ["index.php"]
 
 LOG_COLORS = {
@@ -216,5 +346,5 @@ LOG_COLORS = {
     "WARNING": "\033[38;5;178m",
     "ERROR": "\033[38;5;203m",
     "RESET": "\033[0m",
-    "GRAY": "\033[38;5;244m"
+    "GRAY": "\033[38;5;244m",
 }

@@ -16,7 +16,8 @@ from transpilex.config.base import (
     CAKEPHP_VARIABLE_REPLACEMENT, CAKEPHP_EXTENSION, CODEIGNITER_ASSETS_PATH, CODEIGNITER_PARTIALS_PATH,
     CODEIGNITER_VARIABLE_REPLACEMENT, CODEIGNITER_EXTENSION, NODE_VARIABLE_REPLACEMENT, NODE_EXTENSION,
     NODE_PARTIALS_PATH, NODE_ASSETS_PATH, FLASK_ASSETS_PATH, FLASK_PARTIALS_PATH, FLASK_VARIABLE_REPLACEMENT,
-    FLASK_EXTENSION
+    FLASK_EXTENSION, SYMFONY_ASSETS_PATH, SYMFONY_PARTIALS_PATH, SYMFONY_VARIABLE_REPLACEMENT,
+    SYMFONY_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -233,6 +234,12 @@ def ask_project_config():
         project_partials_path = FLASK_PARTIALS_PATH
         variable_replacement = FLASK_VARIABLE_REPLACEMENT
         file_extension = FLASK_EXTENSION
+
+    elif framework == "symfony":
+        project_assets_path = SYMFONY_ASSETS_PATH
+        project_partials_path = SYMFONY_PARTIALS_PATH
+        variable_replacement = SYMFONY_VARIABLE_REPLACEMENT
+        file_extension = SYMFONY_EXTENSION
 
     else:
         project_assets_path = None
