@@ -22,7 +22,6 @@ class BaseCodeIgniterConverter:
         self.config = config
 
         self.project_views_path = Path(self.config.project_root_path / "app" / "Views")
-        self.project_partials_path = Path(self.project_views_path / "partials")
 
     def init_create_project(self):
         try:
@@ -48,7 +47,7 @@ class BaseCodeIgniterConverter:
         self._convert()
 
         if self.config.partials_path:
-            replace_variables(self.project_partials_path, self.config.variable_patterns,
+            replace_variables(self.config.project_partials_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
 
     def _convert(self):

@@ -99,7 +99,7 @@ class LaravelConverter:
                 # allow both {{> ...}} and {{&gt; ...}}
                 alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
                 for m in alt_pattern.finditer(title_scan_source):
-                    # ex: "title-meta", "title-meta.html", "app-meta-title", etc.
+                    # "title-meta", "title-meta.html", "app-meta-title", etc.
                     inc_name = Path(m.group("path")).stem.lower()
 
                     if "title-meta" in inc_name or "app-meta-title" in inc_name:
@@ -197,7 +197,6 @@ class LaravelConverter:
 
             main_content = self._replace_all_includes_with_blade(body_html).strip()
 
-            # finally choose extends line
             if layout_title:
                 extends_line = f"@extends('{layout_target}', ['title' => '{escaped_title}'])"
             else:
@@ -238,7 +237,6 @@ class LaravelConverter:
 
         raw = html.unescape(raw.strip())
 
-        # --- JSON object style ---
         if raw.startswith("{") and raw.endswith("}"):
             try:
                 cleaned = re.sub(r"([\{\s,])\s*([a-zA-Z_][\w-]*)\s*:", r'\1"\2":', raw)
@@ -247,12 +245,12 @@ class LaravelConverter:
             except json.JSONDecodeError as e:
                 Log.warning(f"JSON decode error in include params: {e}")
 
-        # --- PHP array(...) style ---
+        # PHP array(...) style
         m_arr = re.search(r"array\s*\(([\s\S]*)\)", raw)
         if m_arr:
             return self._extract_php_array_params(f"array({m_arr.group(1)})")
 
-        # --- Blade array ['key' => 'value'] style ---
+        # Blade array ['key' => 'value'] style
         blade_matches = re.findall(
             r"['\"](?P<key>[^'\"]+)['\"]\s*=>\s*(['\"](?P<val>[^'\"]*)['\"]|(?P<bool>true|false)|(?P<num>-?\d+(?:\.\d+)?))",
             raw,
@@ -268,7 +266,6 @@ class LaravelConverter:
                     parsed[k] = float(n) if "." in n else int(n)
             return parsed
 
-        # --- Handlebars-style key="value" ---
         kv_pairs = re.findall(r"(\w+)=[\"']([^\"']+)[\"']", raw)
         if kv_pairs:
             return {k: v for k, v in kv_pairs}
@@ -343,13 +340,13 @@ class LaravelConverter:
             clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", path)
             clean_path = Path(clean_path).with_suffix("").as_posix()
 
-            # Case 1: partials/... → shared.partials....
+            # partials/... → shared.partials....
             if clean_path.startswith("partials/"):
                 clean_path = clean_path.replace("partials/", "shared/partials/", 1)
-            # Case 2: top-level includes (no folder)
+            # top-level includes (no folder)
             elif "/" not in clean_path:
                 clean_path = f"shared/partials/{clean_path}"
-            # Case 3: already under shared (rare edge)
+            # already under shared (rare edge)
             elif clean_path.startswith("shared/partials/"):
                 pass  # already correct
 
@@ -469,10 +466,10 @@ export default defineConfig({{
         pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
 
         def repl(match):
-            href_val = match.group("href")  # e.g., "auth-lock-screen.html"
-            href_file = Path(href_val).name  # just filename.html
+            href_val = match.group("href")
+            href_file = Path(href_val).name
             if href_file in route_map:
-                route_path = route_map[href_file]  # e.g., "/auth/lock-screen"
+                route_path = route_map[href_file]
                 if route_path == "/index":
                     return f"href=\"{{{{ url('/') }}}}\""
                 return f"href=\"{{{{ url('{route_path}') }}}}\""
