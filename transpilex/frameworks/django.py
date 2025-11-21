@@ -45,7 +45,7 @@ class BaseDjangoConverter:
             Log.error("Django project creation failed")
             return
 
-        files = find_files_with_extension(self.config.pages_path, "html")
+        files = find_files_with_extension(self.config.pages_path)
         copy_and_change_extension(files, self.config.pages_path, self.project_pages_path, self.config.file_extension)
 
         self._convert()

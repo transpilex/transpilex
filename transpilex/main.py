@@ -12,6 +12,7 @@ from transpilex.frameworks.mvc import MVCConverter
 from transpilex.frameworks.node import NodeConverter
 from transpilex.frameworks.php import PHPConverter
 from transpilex.frameworks.ror import RorConverter
+from transpilex.frameworks.spring import SpringConverter
 from transpilex.frameworks.symfony import SymfonyConverter
 from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
 
@@ -64,3 +65,5 @@ def main():
         FlaskConverter(config)
     elif project_config["framework"] == "symfony":
         SymfonyConverter(config)
+    elif project_config["framework"] == "spring":
+        SpringConverter(config)

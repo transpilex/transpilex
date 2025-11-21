@@ -10,6 +10,7 @@ SUPPORTED_FRAMEWORKS = [
     "Node",
     "Flask",
     "Symfony",
+    "Spring"
 ]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
@@ -339,6 +340,12 @@ SYMFONY_ASSETS_PATH = "public"
 SYMFONY_PARTIALS_PATH = "templates/partials"
 SYMFONY_VARIABLE_REPLACEMENT = r"{{ (\1) ? \1 : '' }}"
 SYMFONY_ASSETS_PRESERVE = ["index.php"]
+
+# Spring Boot
+SPRING_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-spring-boot.git"
+SPRING_EXTENSION = '.html'
+SPRING_ASSETS_PATH = "src/main/resources/static"
+SPRING_PARTIALS_PATH = "src/main/resources/templates/shared/partials"
 
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",

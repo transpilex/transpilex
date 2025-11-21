@@ -59,7 +59,7 @@ class BaseMVCConverter:
                 shell=True,
                 check=True)
 
-            sln_file = f"{self.project_name}.sln"
+            sln_file = f"{self.project_name}.slnx"
 
             subprocess.run(
                 f'dotnet sln {sln_file} add {self.project_name}.csproj',

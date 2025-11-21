@@ -17,7 +17,7 @@ from transpilex.config.base import (
     CODEIGNITER_VARIABLE_REPLACEMENT, CODEIGNITER_EXTENSION, NODE_VARIABLE_REPLACEMENT, NODE_EXTENSION,
     NODE_PARTIALS_PATH, NODE_ASSETS_PATH, FLASK_ASSETS_PATH, FLASK_PARTIALS_PATH, FLASK_VARIABLE_REPLACEMENT,
     FLASK_EXTENSION, SYMFONY_ASSETS_PATH, SYMFONY_PARTIALS_PATH, SYMFONY_VARIABLE_REPLACEMENT,
-    SYMFONY_EXTENSION
+    SYMFONY_EXTENSION, SPRING_ASSETS_PATH, SPRING_PARTIALS_PATH, SPRING_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -240,6 +240,12 @@ def ask_project_config():
         project_partials_path = SYMFONY_PARTIALS_PATH
         variable_replacement = SYMFONY_VARIABLE_REPLACEMENT
         file_extension = SYMFONY_EXTENSION
+
+    elif framework == "spring":
+        project_assets_path = SPRING_ASSETS_PATH
+        project_partials_path = SPRING_PARTIALS_PATH
+        variable_replacement = None
+        file_extension = SPRING_EXTENSION
 
     else:
         project_assets_path = None
