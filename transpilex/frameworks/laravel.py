@@ -458,7 +458,7 @@ export default defineConfig({{
 
         return routes_text
 
-    def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]) -> str:
+    def _replace_anchor_links_with_routes(self, content: str, route_map: dict[str, str]):
         """
         Replace <a href="filename.html"> links with Laravel route URLs from the route map.
         """
@@ -477,7 +477,7 @@ export default defineConfig({{
 
         return pattern.sub(repl, content)
 
-    def _extract_html_data_attributes(self, html_content: str) -> str:
+    def _extract_html_data_attributes(self, html_content: str):
         """
         Extracts all attributes from the <html> tag that start with 'data-'
         and returns a Blade @section('html_attribute') block.

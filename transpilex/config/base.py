@@ -347,6 +347,19 @@ SPRING_EXTENSION = '.html'
 SPRING_ASSETS_PATH = "src/main/resources/static"
 SPRING_PARTIALS_PATH = "src/main/resources/templates/shared/partials"
 
+RESERVE_KEYWORDS = {
+    "abstract", "continue", "for", "new", "switch",
+    "assert", "default", "goto", "package", "synchronized",
+    "boolean", "do", "if", "private", "this",
+    "break", "double", "implements", "protected", "throw",
+    "byte", "else", "import", "public", "throws",
+    "case", "enum", "instanceof", "return", "transient",
+    "catch", "extends", "int", "short", "try",
+    "char", "final", "interface", "static", "void",
+    "class", "finally", "long", "strictfp", "volatile",
+    "const", "float", "native", "super", "while"
+}
+
 LOG_COLORS = {
     "INFO": "\033[38;5;39m",
     "SUCCESS": "\033[38;5;35m",

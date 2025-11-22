@@ -2,13 +2,18 @@ import os
 import re
 import ast
 import shutil
+import html
+import json
 from pathlib import Path
+from typing import Dict, List, Tuple
+
 from cookiecutter.main import cookiecutter
 from bs4 import BeautifulSoup, NavigableString
 
-from transpilex.config.base import SPRING_COOKIECUTTER_REPO
+from transpilex.config.base import SPRING_COOKIECUTTER_REPO, RESERVE_KEYWORDS
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_assets, replace_asset_paths, clean_relative_asset_paths
+from transpilex.utils.assets import copy_assets, replace_asset_paths
+from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import file_exists, copy_items, move_files
 from transpilex.utils.gulpfile import has_plugins_config
 from transpilex.utils.logs import Log
@@ -58,7 +63,7 @@ class BaseSpringConverter:
 
         self._convert()
 
-        self._create_controllers(ignore_list=["layouts", "partials"])
+        self._create_controllers(ignore_list=["shared"])
 
         if self.config.partials_path:
             move_files(Path(self.project_templates_path / "partials"), self.config.project_partials_path)
@@ -72,220 +77,515 @@ class BaseSpringConverter:
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
     def _convert(self):
-        """Processes all .html files, dispatching to page or partial processor."""
+        """Processes templates: partials get fragment wrappers; pages get layout decoration."""
         count = 0
-        all_files = list(self.project_templates_path.rglob("*.html"))
+        all_files = list(self.project_templates_path.rglob(f"*{self.config.file_extension}"))
 
         for file in all_files:
-            is_partial = 'partials' in file.parts or file.name.startswith('_')
-            if is_partial:
-                self._process_partial_file(file)
-            else:
-                self._process_page_file(file)
-            count += 1
+            if not file.is_file() or "shared" in file.parts:
+                continue
+
+            is_partial = "partials" in file.parts
+            try:
+                if is_partial:
+                    self._process_partial_file(file)
+                else:
+                    self._process_page_file(file)
+                count += 1
+            except Exception as e:
+                Log.warning(f"Failed converting {file}: {e}")
         Log.info(f"{count} files converted in {self.project_templates_path}")
 
-    def _format_thymeleaf_value(self, value):
-        """Formats a Python value into a Thymeleaf-compatible string for a fragment parameter."""
-        if isinstance(value, str):
-            escaped = value.replace("'", "\\'")
-            return f"'{escaped}'"
-        elif isinstance(value, bool):
-            return 'true' if value else 'false'
-        elif value is None:
-            return 'null'
-        else:
-            return str(value)
+    def _protect_handlebars(self, src: str):
+        """
+        Replace {{ ... }} / Handlebars blocks with placeholders, returning (protected_text, map)
+        """
+        placeholder_map = {}
 
-    def _extract_params_from_include(self, params_str: str):
-        if not params_str or not params_str.strip():
-            return {}
-        eval_str = params_str.strip()
-        eval_str = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', eval_str)
-        eval_str = eval_str.replace('true', 'True').replace('false', 'False').replace('null', 'None')
-        eval_str = re.sub(r',\s*([}\]])', r'\1', eval_str)
-        try:
-            return ast.literal_eval(eval_str)
-        except (ValueError, SyntaxError) as e:
-            Log.warning(f"Failed to parse parameters: {params_str[:70]}... Error: {e}")
+        def _repl(m):
+            key = f"__HB_{len(placeholder_map)}__"
+            placeholder_map[key] = m.group(0)
+            return key
+
+        protected = re.sub(r"\{\{[^\{\}]+\}\}", _repl, src)
+        return protected, placeholder_map
+
+    def _restore_placeholders(self, text: str, placeholder_map: Dict[str, str]):
+        for k, v in placeholder_map.items():
+            text = text.replace(k, v)
+        return text
+
+    def _parse_include_params(self, raw: str):
+        """
+        Parse JSON, PHP array(...), Blade-style ['k'=>'v'], or kv pairs key="value"
+        Returns dict.
+        """
+        if not raw:
             return {}
 
-    def _convert_includes_to_thymeleaf(self, content: str):
-        """Finds all @@include statements and replaces them with Thymeleaf th:replace fragments."""
-        include_pattern = re.compile(
-            r'@@include\(\s*["\']([^"\']+)["\']\s*(?:,\s*(\{[\s\S]*?\}))?\s*\)',
-            re.DOTALL
+        raw = html.unescape(raw.strip())
+
+        # JSON-style object
+        if raw.startswith("{") and raw.endswith("}"):
+            try:
+                cleaned = re.sub(r"([\{\s,])\s*([a-zA-Z_][\w-]*)\s*:", r'\1"\2":', raw)
+                cleaned = re.sub(r",\s*([\}\]])", r"\1", cleaned)
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                Log.warning("JSON parse failed for include params; falling back to other parsers.")
+
+        # PHP array(...) -> delegate
+        m_arr = re.search(r"array\s*\(([\s\S]*)\)", raw)
+        if m_arr:
+            return self._extract_php_array_params(f"array({m_arr.group(1)})")
+
+        # Blade ['k' => 'v'] style
+        blade_matches = re.findall(
+            r"['\"](?P<key>[^'\"]+)['\"]\s*=>\s*(['\"](?P<val>[^'\"]*)['\"]|(?P<bool>true|false)|(?P<num>-?\d+(?:\.\d+)?))",
+            raw,
         )
+        if blade_matches:
+            parsed = {}
+            for k, _, v, b, n in blade_matches:
+                if v:
+                    parsed[k] = v
+                elif b:
+                    parsed[k] = (b == "true")
+                elif n:
+                    parsed[k] = float(n) if "." in n else int(n)
+            return parsed
 
-        def replacer(match):
-            path_str = match.group(1)
-            params_str = match.group(2)
+        # simple key="value" pairs
+        kv_pairs = re.findall(r"(\w+)=[\"']([^\"']+)[\"']", raw)
+        if kv_pairs:
+            return {k: v for k, v in kv_pairs}
 
-            clean_path = path_str.strip().replace('./', '').replace('.html', '')
+        # fallback: attempt ast.literal_eval after replacements (true/false/null)
+        try:
+            eval_str = raw.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+            return dict(ast.literal_eval(eval_str))
+        except Exception:
+            Log.warning(f"Unable to parse include params: {raw[:80]}")
+            return {}
+
+    def _extract_php_array_params(self, include_str: str):
+        m = re.search(r"array\s*\(([\s\S]*)\)", include_str)
+        if not m:
+            return {}
+        body = m.group(1)
+        pattern = re.compile(r"""
+                (?:['"](?P<key>[^'"]+)['"]\s*=>\s*)?
+                (?:
+                    ['"](?P<sval>(?:\\.|[^'"])*)['"] |
+                    (?P<nval>-?\d+(?:\.\d+)?) |
+                    (?P<bool>true|false)
+                )
+                \s*(?:,\s*|$)
+            """, re.VERBOSE | re.DOTALL)
+        result = {}
+        for match in pattern.finditer(body):
+            key = match.group("key")
+            if not key:
+                continue
+            if match.group("sval") is not None:
+                result[key] = match.group("sval")
+            elif match.group("nval"):
+                n = match.group("nval")
+                result[key] = float(n) if "." in n else int(n)
+            elif match.group("bool"):
+                result[key] = match.group("bool") == "true"
+        return result
+
+    def _replace_all_includes_with_thymeleaf(self, content: str):
+        """
+        Convert all include syntaxes matched by self.config.import_patterns into
+        Thymeleaf th:replace fragment usage.
+        Example: @@include('./partials/page-title', {title: 'X'})
+                 -> <th:block th:replace="~{partials/page-title :: page-title(title='X')}"/>
+        Also handles Handlebars: {{> partial }} and escaped {{&gt; partial }}
+        """
+        # Build list of matches first to avoid interfering replacements
+        fragments = []
+        for label, pattern in self.config.import_patterns.items():
+            # allow escaped > like &gt;
+            alt_pat = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+            for m in alt_pat.finditer(content):
+                fragments.append({
+                    "label": label,
+                    "full": m.group(0),
+                    "path": m.group("path"),
+                    "params": m.groupdict().get("params", "") or ""
+                })
+
+        for frag in fragments:
+            raw_path = frag["path"]
+            params_raw = frag["params"]
+
+            clean_path = re.sub(r"^(\.\/|\.\.\/)+", "", raw_path).replace(".html", "")
+            clean_path = Path(clean_path).as_posix()
+
+            # ensure partials prefix
+            if not "/" in clean_path and not clean_path.startswith("partials"):
+                clean_path = f"shared/partials/{clean_path}"
+            elif clean_path.startswith("partials/"):
+                clean_path = f"shared/{clean_path}"
+            elif clean_path.startswith("shared/partials/"):
+                clean_path = clean_path  # keep shared path as-is
+
             fragment_name = Path(clean_path).name
 
-            # Thymeleaf fragment path: "partials/page-title" -> "~{partials/page-title :: page-title}"
-            thymeleaf_path = f"~{{{clean_path} :: {fragment_name}}}"
+            # skip title-meta includes (consumed elsewhere)
+            if fragment_name.lower() in {"title-meta", "app-meta-title"}:
+                content = content.replace(frag["full"], "")
+                continue
 
-            if not params_str:
-                return f'<th:block th:replace="{thymeleaf_path}" />'
-
-            params_dict = self._extract_params_from_include(params_str)
-            if not params_dict:
-                return f'<th:block th:replace="{thymeleaf_path}" />'
-
-            # Convert Python dict to Thymeleaf parameters: (key='value', key2=123)
-            thymeleaf_params = ", ".join(
-                f"{key}={self._format_thymeleaf_value(value)}"
-                for key, value in params_dict.items()
-            )
-
-            return f'<th:block th:replace="{thymeleaf_path}({thymeleaf_params})" />'
-
-        return include_pattern.sub(replacer, content)
-
-    def _prepare_content_placeholders(self, soup_element):
-        """
-        Converts .html page links into root-relative hrefs,
-        turning hyphens and underscores into URL path separators.
-        """
-        for a_tag in soup_element.find_all('a', href=True):
-            href = a_tag.get('href')
-            if href and href.endswith('.html') and not href.startswith(('http', '#', 'javascript:')):
-                url_path = href.replace('.html', '').replace('_', '/').replace('-', '/')
-
-                a_tag['href'] = f'/{url_path}'
-
-        return soup_element
-
-    def _process_page_file(self, file_path):
-        """
-        Extracts content and assets from a template file and wraps them in a
-        clean Thymeleaf layout with proper formatting.
-        """
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        content = clean_relative_asset_paths(content)
-
-        page_meta_fragment = ""
-        title = "Page Title"
-        title_meta_pattern = re.compile(
-            r'@@include\(\s*["\']\./partials/([^"\']*?meta-title[^"\']*?|[^"\']*?title-meta[^"\']*?)\.html["\']\s*,\s*(\{[\s\S]*?\})\s*\)',
-            re.DOTALL
-        )
-        match = title_meta_pattern.search(content)
-        if match:
-            params_dict = self._extract_params_from_include(match.group(2))
-            title = params_dict.get('title', params_dict.get('pageTitle', title))
-            page_meta_fragment = f"<th:block layout:fragment=\"page-meta\" th:replace=\"~{{partials/page-meta :: page-meta('{title}')}}\" />"
-
-        # Parse the entire file ONCE
-        soup = BeautifulSoup(content, 'html.parser')
-
-        # Extract ALL styles and scripts from the entire file first.
-        # This ensures we find them no matter where they are located.
-        styles = self._extract_styles(soup)
-        scripts = self._extract_scripts(soup)
-
-        # Now, find the content block from the modified soup (which no longer has those assets)
-        layout_name = 'vertical'
-        content_source = soup.find(attrs={"data-content": True})
-        if content_source is None:
-            if soup.body:
-                content_source = soup.body
-                layout_name = 'base'
+            params = self._parse_include_params(params_raw)
+            if params:
+                # format into Thymeleaf params (key='value', key2=123)
+                pairs = []
+                for k, v in params.items():
+                    if isinstance(v, str):
+                        escaped = v.replace("'", "\\'")
+                        pairs.append(f"{k}='{escaped}'")
+                    elif isinstance(v, bool):
+                        pairs.append(f"{k}={'true' if v else 'false'}")
+                    elif v is None:
+                        pairs.append(f"{k}=null")
+                    else:
+                        pairs.append(f"{k}={v}")
+                param_str = ", ".join(pairs)
+                replacement = f'<th:block th:replace="~{{{clean_path} :: {fragment_name}({param_str})}}"></th:block>'
             else:
-                Log.warning(f"No content block ('data-content' or 'body') found in {file_path}. Skipping.")
-                return
+                replacement = f'<th:block th:replace="~{{{clean_path} :: {fragment_name}}}"></th:block>'
 
-        # Process the content block's inner HTML
-        content_html = content_source.decode_contents()
-        processed_content_html = self._convert_includes_to_thymeleaf(content_html)
-        temp_soup = BeautifulSoup(processed_content_html, 'html.parser')
-        final_content_soup = self._prepare_content_placeholders(temp_soup)
-        final_content = final_content_soup.decode(formatter=None)
+            content = content.replace(frag["full"], replacement)
 
-        # Assemble the final template with newline-separated assets
-        thymeleaf_output = f"""<html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{{layouts/{layout_name}}}">
+        return content
+
+    def _replace_anchor_links_with_routes(self, content: str, route_map: Dict[str, str]):
+        """
+        Replace <a href="file.html"> with Thymeleaf-friendly th:href="@{/path}" using route_map.
+        Uses th:href to play nicely with Thymeleaf; for index -> @{/}
+        Leaves absolute/external links untouched.
+        """
+        pattern = re.compile(r'href=(["\'])(?P<href>[^"\']+\.html)\1', re.IGNORECASE)
+
+        def repl(m):
+            href = m.group("href")
+            href_file = Path(href).name
+            if href_file in route_map:
+                route_path = route_map[href_file]
+                if route_path == "/index":
+                    return 'th:href="@{/}"'
+                # ensure route_path begins with /
+                if not route_path.startswith("/"):
+                    route_path = "/" + route_path
+                return f'th:href="@{{{route_path}}}"'
+            # otherwise keep original attribute but convert to th:href if local
+            if not href.lower().startswith(("http://", "https://", "//")):
+                clean = "/" + href.lstrip("./")
+                return f'th:href="@{{{clean}}}"'
+            return m.group(0)
+
+        return pattern.sub(repl, content)
+
+    def _replace_asset_paths_for_thymeleaf(self, content: str) -> str:
+        """
+        Converts:
+          - inline styles: style="background:url('../assets/...')"
+                -> th:style="|background:url('@{/...}')|"
+          - CSS url(...) inside <style> blocks
+          - <img>, <link>, <a>, <script> if not already handled
+        """
+
+        soup = BeautifulSoup(content, "html.parser")
+
+        def normalize_asset(val: str) -> str | None:
+            """Return cleaned path without 'assets/' prefix."""
+            if not val:
+                return None
+            if re.match(r'^(https?:)?//', val) or val.startswith(("data:", "mailto:", "tel:")):
+                return None
+            m = re.match(r'^(?:\./|\.\./)*assets/(.+)$', val)
+            return m.group(1).lstrip('/') if m else None
+
+        for tag in soup.find_all(style=True):
+            style_val = tag.get("style")
+            if not style_val:
+                continue
+
+            # Find url(...) inside style attribute
+            urls = re.findall(r'url\((["\']?)(.+?)\1\)', style_val, flags=re.IGNORECASE)
+            if not urls:
+                continue
+
+            new_style = style_val
+
+            for quote, url_val in urls:
+                cleaned = normalize_asset(url_val)
+                if cleaned:
+                    thymeleaf_url = f"@{{/{cleaned}}}"
+                    new_style = new_style.replace(url_val, thymeleaf_url)
+
+            # Rewrite to proper th:style (Thymeleaf processing syntax)
+            tag.attrs.pop("style", None)
+            tag.attrs["th:style"] = f"|{new_style}|"
+
+        for style_tag in soup.find_all("style"):
+            css_text = style_tag.string or ""
+            urls = re.findall(r'url\((["\']?)(.+?)\1\)', css_text)
+            new_css = css_text
+            for quote, url_val in urls:
+                cleaned = normalize_asset(url_val)
+                if cleaned:
+                    new_css = new_css.replace(url_val, f"@{{/{cleaned}}}")
+            style_tag.string = new_css
+
+        # Only convert here if they still contain assets/ (backup safety)
+        for tag in soup.find_all(["img", "link", "script", "a"]):
+            for attr in ["src", "href"]:
+                if not tag.has_attr(attr):
+                    continue
+
+                val = tag[attr]
+                cleaned = normalize_asset(val)
+                if cleaned:
+                    # remove original attribute
+                    tag.attrs.pop(attr, None)
+
+                    # assign Thymeleaf attribute
+                    thyme_attr = "th:src" if attr == "src" else "th:href"
+                    tag.attrs[thyme_attr] = f"@{{/{cleaned}}}"
+
+        out = str(soup)
+        return out
+
+    def _extract_html_data_attributes(self, html_content: str):
+        soup = BeautifulSoup(html_content, "html.parser")
+        html_tag = soup.find("html")
+        if not html_tag:
+            return ""
+        attrs = [f'{k}="{v}"' for k, v in html_tag.attrs.items() if k.startswith("data-")]
+        if not attrs:
+            return ""
+        attrs_str = " ".join(attrs)
+        # Return a fragment block that layouts can consume, similar to Blade's @section
+        return f'<!--html-attributes-->\n<th:block layout:fragment="html_attributes">{attrs_str}</th:block>\n<!--/html-attributes-->'
+
+    def _process_page_file(self, file_path: Path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            original = f.read()
+
+        # protect handlebars/templating placeholders while manipulating DOM
+        protected, placeholder_map = self._protect_handlebars(original)
+
+        # normalize &gt;
+        title_scan_source = protected.replace("&gt;", ">")
+
+        # detect title/meta includes using config.import_patterns
+        layout_title = ""
+        for label, pattern in self.config.import_patterns.items():
+            alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+            m = alt_pattern.search(title_scan_source)
+            if m:
+                inc_name = Path(m.group("path")).stem.lower()
+                if inc_name in {"title-meta", "app-meta-title"}:
+                    params = m.groupdict().get("params", "") or ""
+                    meta = self._parse_include_params(params)
+                    layout_title = meta.get("title") or meta.get("pageTitle") or ""
+                    break
+
+        escaped_title = layout_title.replace("'", "\\'")
+
+        # parse DOM
+        soup = BeautifulSoup(protected, "html.parser")
+
+        # remove and collect link tags
+        styles = []
+        for tag in list(soup.find_all("link")):
+            href = tag.get("href")
+
+            if href and not href.startswith(("http", "//")):
+                normalized = re.sub(r"^(?:\./|\.\./)+", "", href)
+
+                # REMOVE assets/ prefix
+                if normalized.startswith("assets/"):
+                    cleaned = normalized[len("assets/"):]
+                    styles.append(f'<link th:href="@{{/{cleaned}}}" rel="stylesheet" type="text/css"/>')
+                else:
+                    cleaned = normalized.lstrip("/")
+                    styles.append(f'<link th:href="@{{/{cleaned}}}" rel="stylesheet" type="text/css"/>')
+            else:
+                styles.append(str(tag))
+
+            tag.decompose()
+
+        # collect scripts (local ones will be left as-is or transformed)
+        scripts = []
+        for tag in list(soup.find_all("script")):
+            src = tag.get("src")
+
+            if src and not src.startswith(("http", "//")):
+                # normalized path without ./ or ../
+                normalized = re.sub(r"^(?:\./|\.\./)+", "", src)
+
+                # REMOVE assets/ prefix if it exists
+                if normalized.startswith("assets/"):
+                    cleaned = normalized[len("assets/"):]
+                    scripts.append(f'<script th:src="@{{/{cleaned}}}"></script>')
+                else:
+                    # normal local script
+                    cleaned = normalized.lstrip("/")
+                    scripts.append(f'<script th:src="@{{/{cleaned}}}"></script>')
+            else:
+                scripts.append(str(tag))
+
+            tag.decompose()
+
+        # find main content
+        content_div = soup.find(attrs={"data-content": True})
+        if content_div:
+            body_html = content_div.decode_contents()
+            layout_target = "shared/vertical"
+        elif soup.body:
+            body_html = soup.body.decode_contents()
+            layout_target = "shared/base"
+        else:
+            body_html = str(soup)
+            layout_target = "shared/base"
+
+        # restore placeholders inside body_html
+        body_html = self._restore_placeholders(body_html, placeholder_map)
+
+        # replace includes with Thymeleaf
+        main_content = self._replace_all_includes_with_thymeleaf(body_html).strip()
+
+        # place title into fragment if present (optional)
+        if layout_title:
+            decorate_line = f'<html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{{{layout_target}}}" th:attr="data-title=\'{escaped_title}\'">'
+        else:
+            decorate_line = f'<html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{{{layout_target}}}">'
+
+        html_attr_section = self._extract_html_data_attributes(original)
+
+        # restore any leftover handlebars placeholders inside main_content
+        main_content = self._replace_asset_paths_for_thymeleaf(main_content)
+        main_content = self._replace_anchor_links_with_routes(main_content, self.route_map)
+
+        # restore placeholders (in case some included fragments had them)
+        main_content = self._restore_placeholders(main_content, placeholder_map)
+
+        styles = [self._replace_asset_paths_for_thymeleaf(s) for s in styles]
+        scripts = [self._replace_asset_paths_for_thymeleaf(s) for s in scripts]
+
+        thymeleaf_output = f"""{decorate_line}
+
+{html_attr_section}
 
 <th:block layout:fragment="styles">
-    {'\n    '.join(styles)}
+{'\n'.join(styles)}
 </th:block>
 
-<head>
-    {page_meta_fragment}
-</head>
+<th:block layout:fragment="content">
+{main_content}
+</th:block>
 
-<body>
-    <th:block layout:fragment="content">
-        {final_content.strip()}
-    </th:block>
+<th:block layout:fragment="scripts">
+{'\n'.join(scripts)}
+</th:block>
 
-    <th:block layout:fragment="scripts">
-        {'\n    '.join(scripts)}
-    </th:block>
-</body>
-
-</html>"""
-
+</html>
+"""
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(thymeleaf_output)
+            f.write(thymeleaf_output.strip() + "\n")
+
         Log.converted(str(file_path))
 
-    def _process_partial_file(self, file_path):
-        """
-        Converts a partial file into a full HTML document containing a named
-        Thymeleaf fragment.
-        """
+    def _process_partial_file(self, file_path: Path):
         with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+            original = f.read()
 
-        # Clean asset paths and convert includes as before
-        content = clean_relative_asset_paths(content)
-        content = self._convert_includes_to_thymeleaf(content)
+        protected, placeholder_map = self._protect_handlebars(original)
 
-        # Parse the content to process placeholders (like hrefs)
-        temp_soup = BeautifulSoup(content, 'html.parser')
-        processed_soup = self._prepare_content_placeholders(temp_soup)
-        processed_content = processed_soup.decode(formatter=None).strip()
+        # clean asset paths
+        protected = self._replace_asset_paths_for_thymeleaf(protected)
 
-        # Derive the fragment name from the file name (e.g., "sidenav")
-        fragment_name = file_path.stem.replace('_', '')
+        # convert includes in partials too
+        content = self._replace_all_includes_with_thymeleaf(protected)
 
+        # parse to process hrefs and other local attributes
+        soup = BeautifulSoup(content, "html.parser")
+        # update anchors inside partial to route-style
+        for a in soup.find_all("a"):
+            href = a.get("href")
+            if href and href.endswith(".html"):
+                replaced = self._replace_anchor_links_with_routes(f'href="{href}"', self.route_map)
+                # replaced contains th:href attr — convert into actual attribute on tag
+                m = re.search(r'(th:href=.+)$', replaced)
+                if m:
+                    a.attrs.pop("href", None)
+                    # BeautifulSoup requires attribute assignment as string (strip outer quotes)
+                    # remove surrounding quotes from m.group
+                    attr_val = replaced.split("=", 1)[1].strip()
+                    # attr_val includes surrounding quotes; remove them
+                    a.attrs["th:href"] = attr_val.strip().strip('"').strip("'")
+
+        processed_content = self._restore_placeholders(str(soup), placeholder_map)
+
+        fragment_name = file_path.stem.lstrip('_')
         final_output = f"""<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
-<th:block th:fragment="{fragment_name}">
-
-{processed_content}
-
-</th:block>
-</html>"""
+    <html xmlns:th="http://www.thymeleaf.org">
+    <th:block th:fragment="{fragment_name}">
+    {processed_content}
+    </th:block>
+    </html>"""
 
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(final_output)
+            f.write(final_output.strip() + "\n")
         Log.converted(str(file_path))
 
-    def _create_controller_file(self, path, controller_name, actions):
-        """Creates a Spring Boot controller Java file with nested routes."""
-        class_name = controller_name.capitalize()
+    def _sanitize_action_name(self, controller_name: str, action_name: str) -> str:
+        """
+        Ensures the generated Java method name is valid.
+        Prefixes method when:
+        - it starts with a number
+        - it is a Java reserved keyword
+        """
+        sanitized = action_name
+
+        # Replace illegal characters
+        sanitized = re.sub(r'[^a-zA-Z0-9_]', '_', sanitized)
+
+        # If starts with number → prefix controller name
+        if re.match(r'^\d', sanitized):
+            sanitized = f"{controller_name}_{sanitized}"
+
+        # If reserved keyword → prefix controller name
+        if sanitized in RESERVE_KEYWORDS:
+            sanitized = f"{controller_name}_{sanitized}"
+
+        return sanitized
+
+    def _create_controller_file(self, path: Path, controller_name: str, actions: List[Tuple[str, str]]):
+        class_name = controller_name[0].upper() + controller_name[1:]
         request_mapping = controller_name.lower()
-
-        methods = ""
+        methods = []
         for action_name, template_path in actions:
-            method_name = self._to_camel_case(action_name)
-
-            get_mapping = action_name.replace('_', '/').replace('-', '/')
-
+            safe_name = self._sanitize_action_name(controller_name, action_name)
+            method_name = apply_casing(safe_name, "camel")
+            get_mapping = action_name.replace('_', '/')
             if get_mapping == 'index':
-                get_mapping = ""
-
-            methods += f"""
-@GetMapping("/{get_mapping}")
+                mapping_path = ""
+            else:
+                mapping_path = f"/{get_mapping}"
+            methods.append(f"""
+@GetMapping("{mapping_path}")
 public String {method_name}() {{
     return "{template_path}";
 }}
-    """
+    """)
+        methods_block = "\n".join(methods)
+
         package_name = str(self.project_controllers_path.relative_to(self.project_java_path)).replace(os.sep, '.')
         controller_code = f"""package {package_name};
 
@@ -296,25 +596,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 @RequestMapping("/{request_mapping}")
 public class {class_name} {{
-    {methods.strip()}
+{methods_block}
 }}
     """
+        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(controller_code)
+        Log.created(str(path))
 
     def _create_controllers(self, ignore_list=None):
-        """Scans the template directory to generate controllers and their methods."""
         ignore_list = ignore_list or []
-        if os.path.isdir(self.project_controllers_path):
-            shutil.rmtree(self.project_controllers_path)
-        os.makedirs(self.project_controllers_path, exist_ok=True)
 
         for controller_name in os.listdir(self.project_templates_path):
             if controller_name in ignore_list:
                 continue
-
-            controller_folder_path = os.path.join(self.project_templates_path, controller_name)
-            if not os.path.isdir(controller_folder_path):
+            controller_folder_path = self.project_templates_path / controller_name
+            if not controller_folder_path.is_dir():
                 continue
 
             actions = []
@@ -323,50 +620,15 @@ public class {class_name} {{
                     if file.endswith(self.config.file_extension) and not file.startswith("_"):
                         full_path = Path(root) / file
                         rel_path = full_path.relative_to(self.project_templates_path)
-
                         template_path = str(rel_path.with_suffix('')).replace(os.sep, '/')
-
-                        # Action name is the file path relative to its controller folder
                         action_name = str(full_path.relative_to(controller_folder_path).with_suffix('')).replace(
                             os.sep, '_')
-
                         actions.append((action_name, template_path))
-
             if actions:
                 controller_file_name = f"{controller_name.capitalize()}.java"
                 controller_file_path = self.project_controllers_path / controller_file_name
                 self._create_controller_file(controller_file_path, controller_name, actions)
-                Log.created(str(controller_file_path))
         Log.info("Controller generation completed")
-
-    def _to_camel_case(self, snake_str):
-        """Converts snake_case or kebab-case to camelCase."""
-        components = snake_str.replace('-', '_').split('_')
-        return components[0] + ''.join(x.title() for x in components[1:])
-
-    def _extract_styles(self, element_to_search):
-        """Extracts local stylesheet <link> tags."""
-        styles = []
-        for link_tag in list(element_to_search.find_all('link', rel='stylesheet')):
-            if link_tag:
-                href = link_tag.get('href')
-                if href and not href.startswith(('http', '//')):
-                    # Directly format the string instead of creating a new tag
-                    styles.append(f'<link rel="stylesheet" href="{href}">')
-                    link_tag.decompose()
-        return styles
-
-    def _extract_scripts(self, element_to_search):
-        """Extracts local script tags."""
-        scripts = []
-        for script in list(element_to_search.find_all('script')):
-            if script:
-                src = script.get('src')
-                if src and not src.startswith(('http', '//')):
-                    # Directly format the string instead of creating a new tag
-                    scripts.append(f'<script src="{src}"></script>')
-                    script.decompose()
-        return scripts
 
 
 class SpringGulpConverter(BaseSpringConverter):
