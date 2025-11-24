@@ -28,7 +28,6 @@ class BaseSpringConverter:
 
         self.project_java_path = self.config.project_root_path / "src/main/java"
         self.project_controllers_path = self.project_java_path / "com/example" / self.config.project_name / "controller"
-        self.project_partials_path = self.project_templates_path / "partials"
 
         self.route_map = None
 
@@ -67,6 +66,8 @@ class BaseSpringConverter:
 
         if self.config.partials_path:
             move_files(Path(self.project_templates_path / "partials"), self.config.project_partials_path)
+            self._replace_variables(self.config.project_partials_path, self.config.variable_patterns,
+                                    self.config.file_extension)
 
         if self.config.asset_paths:
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
@@ -360,17 +361,22 @@ class BaseSpringConverter:
         out = str(soup)
         return out
 
-    def _extract_html_data_attributes(self, html_content: str):
+    def _extract_html_data_attributes(self, html_content: str) -> str:
+        """
+        Extracts data- attributes from the source <html> tag and returns them as a string.
+        """
         soup = BeautifulSoup(html_content, "html.parser")
         html_tag = soup.find("html")
         if not html_tag:
             return ""
+
+        # Filter for data- attributes only
         attrs = [f'{k}="{v}"' for k, v in html_tag.attrs.items() if k.startswith("data-")]
+
         if not attrs:
             return ""
-        attrs_str = " ".join(attrs)
-        # Return a fragment block that layouts can consume, similar to Blade's @section
-        return f'<!--html-attributes-->\n<th:block layout:fragment="html_attributes">{attrs_str}</th:block>\n<!--/html-attributes-->'
+
+        return " ".join(attrs)
 
     def _process_page_file(self, file_path: Path):
         with open(file_path, "r", encoding="utf-8") as f:
@@ -379,20 +385,61 @@ class BaseSpringConverter:
         # protect handlebars/templating placeholders while manipulating DOM
         protected, placeholder_map = self._protect_handlebars(original)
 
-        # normalize &gt;
-        title_scan_source = protected.replace("&gt;", ">")
+        title_scan_source = original.replace("&gt;", ">")
 
         # detect title/meta includes using config.import_patterns
         layout_title = ""
+
         for label, pattern in self.config.import_patterns.items():
-            alt_pattern = re.compile(pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*"))
+            # allow escaped > like &gt; and flexible spacing after >
+            try:
+                # This replacement makes the regex robust against HTML entities
+                alt_re = pattern.pattern.replace(r"\>\s*", r"(?:>|&gt;)\s*")
+                alt_pattern = re.compile(alt_re, flags=re.IGNORECASE | re.DOTALL)
+            except Exception:
+                # fallback generic pattern
+                alt_pattern = re.compile(r'\{\{\s*>\s*(?P<path>[^}\s]+)(?:\s*,?\s*(?P<params>\{[\s\S]*?\}))?\s*\}\}',
+                                         flags=re.IGNORECASE | re.DOTALL)
+
             m = alt_pattern.search(title_scan_source)
-            if m:
-                inc_name = Path(m.group("path")).stem.lower()
-                if inc_name in {"title-meta", "app-meta-title"}:
-                    params = m.groupdict().get("params", "") or ""
-                    meta = self._parse_include_params(params)
-                    layout_title = meta.get("title") or meta.get("pageTitle") or ""
+            if not m:
+                continue
+
+            # Extract path
+            path_val = None
+            if "path" in m.groupdict() and m.group("path"):
+                path_val = m.group("path")
+            else:
+                try:
+                    path_val = m.group(1)
+                except IndexError:
+                    path_val = None
+
+            if not path_val:
+                continue
+
+            inc_name = Path(path_val).stem.lower()
+
+            # Extract params
+            params_raw = ""
+            if "params" in m.groupdict() and m.group("params"):
+                params_raw = m.group("params")
+            else:
+                try:
+                    params_raw = m.group(2) or ""
+                except IndexError:
+                    params_raw = ""
+
+            # parse params
+            params_raw = (params_raw or "").strip()
+            try:
+                parsed = self._parse_include_params(params_raw)
+            except Exception:
+                parsed = {}
+
+            if inc_name in {"title-meta", "app-meta-title"}:
+                layout_title = parsed.get("title") or parsed.get("pageTitle") or layout_title
+                if layout_title:
                     break
 
         escaped_title = layout_title.replace("'", "\\'")
@@ -446,13 +493,13 @@ class BaseSpringConverter:
         content_div = soup.find(attrs={"data-content": True})
         if content_div:
             body_html = content_div.decode_contents()
-            layout_target = "shared/vertical"
+            layout_target = f"shared/vertical(title=${{'{escaped_title}'}})"
         elif soup.body:
             body_html = soup.body.decode_contents()
-            layout_target = "shared/base"
+            layout_target = f"shared/base(title=${{'{escaped_title}'}})"
         else:
             body_html = str(soup)
-            layout_target = "shared/base"
+            layout_target = f"shared/base(title=${{'{escaped_title}'}})"
 
         # restore placeholders inside body_html
         body_html = self._restore_placeholders(body_html, placeholder_map)
@@ -460,13 +507,12 @@ class BaseSpringConverter:
         # replace includes with Thymeleaf
         main_content = self._replace_all_includes_with_thymeleaf(body_html).strip()
 
-        # place title into fragment if present (optional)
-        if layout_title:
-            decorate_line = f'<html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{{{layout_target}}}" th:attr="data-title=\'{escaped_title}\'">'
-        else:
-            decorate_line = f'<html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{{{layout_target}}}">'
+        html_attrs = self._extract_html_data_attributes(original)
 
-        html_attr_section = self._extract_html_data_attributes(original)
+        if html_attrs:
+            html_attrs = f"{html_attrs}"
+
+        decorate_line = f'<html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{{{layout_target}}}" {html_attrs}>'
 
         # restore any leftover handlebars placeholders inside main_content
         main_content = self._replace_asset_paths_for_thymeleaf(main_content)
@@ -479,8 +525,6 @@ class BaseSpringConverter:
         scripts = [self._replace_asset_paths_for_thymeleaf(s) for s in scripts]
 
         thymeleaf_output = f"""{decorate_line}
-
-{html_attr_section}
 
 <th:block layout:fragment="styles">
 {'\n'.join(styles)}
@@ -534,11 +578,11 @@ class BaseSpringConverter:
 
         fragment_name = file_path.stem.lstrip('_')
         final_output = f"""<!DOCTYPE html>
-    <html xmlns:th="http://www.thymeleaf.org">
-    <th:block th:fragment="{fragment_name}">
-    {processed_content}
-    </th:block>
-    </html>"""
+<html xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="{fragment_name}">
+{processed_content}
+</th:block>
+</html>"""
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_output.strip() + "\n")
@@ -629,6 +673,145 @@ public class {class_name} {{
                 controller_file_path = self.project_controllers_path / controller_file_name
                 self._create_controller_file(controller_file_path, controller_name, actions)
         Log.info("Controller generation completed")
+
+    def _replace_variables(self, folder_path: Path, variable_patterns: dict,
+                          file_extension: str):
+        """
+        Replace @@var and {{ var }} with attribute-based Thymeleaf variables.
+        Rules:
+          - If an element's textual content is exactly the token -> set th:text="${var}" and remove inner text.
+          - If token is mixed with other text -> set th:text to a concatenation expression: e.g. "${title} + ' | Dhonu'".
+          - If token appears inside an attribute (including existing th:text="${@@title}"), sanitize to remove the @@/{{ }}.
+          - Do NOT add spans or alter tag structure.
+          - Does not set th:text on <html> element.
+        Parameters are kept same as original signature for drop-in compatibility.
+        """
+        import html as _html
+        folder = Path(folder_path).resolve()
+        file_extension = file_extension if file_extension.startswith('.') else f'.{file_extension}'
+
+        # Build a simple var detection regex. Expect variable_patterns keys matching earlier structure.
+        # variable_patterns example given earlier:
+        # { "@@": "@@(?!if\\b|include\\b)([A-Za-z_]\\w*)\\b", "{{>": "\\{\\{\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\}\\}" }
+        pattern_at = re.compile(variable_patterns.get("@@", r"@@([A-Za-z_]\w*)\b"))
+        pattern_mustache = re.compile(variable_patterns.get("{{>", r"\{\{\s*([A-Za-z_]\w*)\s*\}\}"))
+
+        def find_var_in_text(s: str):
+            """Return (match_obj, varname) for first occurrence among patterns, or (None, None)."""
+            m = pattern_at.search(s)
+            if m:
+                return m, m.group(1)
+            m2 = pattern_mustache.search(s)
+            if m2:
+                return m2, m2.group(1)
+            return None, None
+
+        files_changed = 0
+
+        for file in folder.rglob(f"*{file_extension}"):
+            if not file.is_file():
+                continue
+            try:
+                raw = file.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+
+            soup = BeautifulSoup(raw, "html.parser")
+            modified = False
+
+            # 1) Sanitize attributes first (so we fix th:text="${@@title}" -> th:text="${title}" etc.)
+            for tag in soup.find_all(True):
+                # skip script/style attributes
+                if tag.name in ("script", "style"):
+                    continue
+                for attr, val in list(tag.attrs.items()):
+                    # BeautifulSoup may give list for some attrs (class). Skip non-string attrs.
+                    if isinstance(val, (list, tuple)):
+                        continue
+                    if not isinstance(val, str) or not val:
+                        continue
+
+                    # Replace @@var and {{ var }} inside attribute values.
+                    # Patterns could appear inside ${...} or alone.
+                    # Replace occurrences like @@title -> title (when inside ${...} we'll keep ${title} later),
+                    # and {{title}} -> title
+                    new_val = val
+                    # replace @@name
+                    new_val = pattern_at.sub(r"\1", new_val)
+                    # replace {{ name }}
+                    new_val = pattern_mustache.sub(r"\1", new_val)
+
+                    if new_val != val:
+                        tag.attrs[attr] = new_val
+                        modified = True
+
+            # 2) Handle textual content nodes.
+            # Iterate over all text nodes (NavigableString) but skip script/style content.
+            for text_node in list(soup.find_all(string=True)):
+                parent = text_node.parent
+                if parent is None:
+                    continue
+                if parent.name in ("script", "style"):
+                    continue
+
+                text = str(text_node)
+                if not text or not text.strip():
+                    continue
+
+                m, varname = find_var_in_text(text)
+                if not m:
+                    continue
+
+                # Determine the element we should modify: the immediate parent element is best.
+                # Avoid setting th:text on the <html> element itself
+                target = parent
+                if target.name == "html":
+                    # skip modifying html root; leave variable untouched (unlikely)
+                    continue
+
+                # Compute expression:
+                token = m.group(0)
+                pre = text[:m.start()].strip()
+                post = text[m.end():].strip()
+
+                # If the parent's children include other elements, we still replace the parent's inner content.
+                # This is safe for anchors (<a>@@subtitle</a>) and similar inline elements.
+                if pre == "" and post == "":
+                    # content is exactly variable -> set th:text="${var}" and remove children/text
+                    target.attrs["th:text"] = f"${{{varname}}}"
+                    # remove all children/text
+                    for child in list(target.contents):
+                        child.extract()
+                    modified = True
+                else:
+                    # Mixed content -> create concatenation expression.
+                    # Build parts: prefix (literal), variable, suffix (literal). Preserve spacing sensibly.
+                    parts = []
+                    if pre:
+                        # escape single quotes inside prefix
+                        p = _html.escape(pre)
+                        p = p.replace("'", "\\'")
+                        parts.append(f"'{pre}'")
+                    parts.append(f"${{{varname}}}")
+                    if post:
+                        q = _html.escape(post)
+                        q = q.replace("'", "\\'")
+                        parts.append(f"'{post}'")
+                    expr = " + ".join(parts)
+                    target.attrs["th:text"] = expr
+                    # remove all children/text of the target element since th:text will replace them
+                    for child in list(target.contents):
+                        child.extract()
+                    modified = True
+
+            # After processing, write only if changed.
+            if modified:
+                # Preserve file encoding and newlines by writing UTF-8 text
+                file.write_text(str(soup), encoding="utf-8")
+                files_changed += 1
+
+        if files_changed:
+            Log.info(f"{files_changed} Thymeleaf variable replacements in {folder_path}")
 
 
 class SpringGulpConverter(BaseSpringConverter):
