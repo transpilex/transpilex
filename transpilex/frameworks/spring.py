@@ -1,7 +1,6 @@
 import os
 import re
 import ast
-import shutil
 import html
 import json
 from pathlib import Path
@@ -675,7 +674,7 @@ public class {class_name} {{
         Log.info("Controller generation completed")
 
     def _replace_variables(self, folder_path: Path, variable_patterns: dict,
-                          file_extension: str):
+                           file_extension: str):
         """
         Replace @@var and {{ var }} with attribute-based Thymeleaf variables.
         Rules:
@@ -829,9 +828,23 @@ class SpringGulpConverter(BaseSpringConverter):
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
+class SpringViteConverter(BaseSpringConverter):
+    def __init__(self, config: ProjectConfig):
+        super().__init__(config)
+
+    def create_project(self):
+        Log.project_start(self.config.project_name)
+
+        self.init_create_project()
+
+        Log.project_end(self.config.project_name, str(self.config.project_root_path))
+
+
 class SpringConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
         if self.config.frontend_pipeline == "gulp":
             SpringGulpConverter(self.config).create_project()
+        else:
+            SpringViteConverter(self.config).create_project()

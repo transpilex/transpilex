@@ -211,6 +211,9 @@ class BaseNodeConverter:
 
         for file in self.project_views_path.rglob(f"*{ext}"):
 
+            if "partials" in file.parts:
+                continue
+
             # Build folder-file route style
             relative = file.relative_to(self.project_views_path)
             folder = relative.parent.name if relative.parent != Path('.') else ""

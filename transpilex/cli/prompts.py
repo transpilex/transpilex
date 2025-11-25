@@ -22,6 +22,7 @@ from transpilex.config.base import (
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
 from transpilex.utils.logs import Log
+from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
 
 CUSTOM_QMARK = "›"
 
@@ -339,7 +340,7 @@ def ask_project_config():
         "framework": framework,
         "ui_library": ui_library.lower(),
         "frontend_pipeline": frontend_pipeline,
-        "src_path": src_path,
+        "src_path": Path(src_path).resolve(),
         "pages_path": Path(pages_path),
         "asset_paths": asset_paths if isinstance(asset_paths, (list, Path)) else (
             Path(asset_paths) if asset_paths else None),
@@ -349,6 +350,8 @@ def ask_project_config():
         "project_assets_path": Path(project_root_path / project_assets_path),
         "project_partials_path": Path(project_root_path / project_partials_path),
         "use_auth": use_auth,
+        "import_patterns": load_compiled_patterns(),
+        "variable_patterns": load_variable_patterns(),
         "variable_replacement": variable_replacement,
         "file_extension": file_extension,
         "gulp_config": GulpConfig(
