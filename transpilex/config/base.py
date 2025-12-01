@@ -157,6 +157,7 @@ NO_NESTING_FOLDERS = {
     "icons",
     "map",
     "maps",
+    "landing",
 }
 
 # PHP
@@ -225,6 +226,7 @@ CORE_ASSETS_PATH = "wwwroot"
 CORE_VITE_ASSETS_PATH = "Assets"
 CORE_PARTIALS_PATH = "Pages/Shared/Partials"
 CORE_VARIABLE_REPLACEMENT = r"@\1"
+CORE_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-core.git"
 
 # MVC
 MVC_PROJECT_CREATION_COMMAND = [

@@ -4,15 +4,14 @@ import html
 import subprocess
 from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString
+from cookiecutter.main import cookiecutter
 
-from transpilex.config.base import CORE_VITE_PROJECT_CREATION_COMMAND, CORE_PROJECT_CREATION_COMMAND, \
-    SLN_FILE_CREATION_COMMAND, CORE_ADDITIONAL_EXTENSION
+from transpilex.config.base import CORE_ADDITIONAL_EXTENSION, CORE_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import clean_relative_asset_paths, copy_public_only_assets, copy_assets, \
     replace_asset_paths
 from transpilex.utils.casing import apply_casing
-from transpilex.utils.file import rename_item, move_files, copy_items
-from transpilex.utils.git import remove_git_folders
+from transpilex.utils.file import move_files, copy_items, file_exists
 from transpilex.utils.gulpfile import add_gulpfile
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
@@ -35,44 +34,26 @@ class BaseCoreConverter:
         self.route_map = None
 
     def init_create_project(self):
-        try:
-            self.config.project_root_path.mkdir(parents=True, exist_ok=True)
 
-            subprocess.run(
-                CORE_VITE_PROJECT_CREATION_COMMAND if self.config.frontend_pipeline == 'vite' else CORE_PROJECT_CREATION_COMMAND,
-                cwd=self.config.project_root_path,
-                check=True,
-                capture_output=True, text=True)
+        try:
+            has_plugins_file = False
+
+            if file_exists(self.config.src_path / "plugins.config.js"):
+                has_plugins_file = True
+
+            cookiecutter(
+                CORE_COOKIECUTTER_REPO,
+                output_dir=str(self.config.project_root_path.parent),
+                no_input=True,
+                extra_context={'name': self.config.project_name,
+                               'ui_library': self.config.ui_library.title(),
+                               'frontend_pipeline': self.config.frontend_pipeline.title(),
+                               'has_plugins_config': 'y' if has_plugins_file and self.config.frontend_pipeline == 'gulp' else 'n'
+                               },
+            )
 
             Log.success("Core project created successfully")
-
-            remove_git_folders(self.config.project_root_path)
-
-            rename_item(Path(self.config.project_root_path / "PROJECT_NAME.csproj"),
-                        f"{self.project_name}.csproj")
-
-            subprocess.run(
-                f'{SLN_FILE_CREATION_COMMAND} {self.project_name}', cwd=self.config.project_root_path,
-                shell=True,
-                check=True)
-
-            sln_file = f"{self.project_name}.slnx"
-
-            subprocess.run(
-                f'dotnet sln {sln_file} add {self.project_name}.csproj',
-                cwd=self.config.project_root_path, shell=True, check=True)
-
-            Log.info(".sln file created successfully")
-
-            try:
-                content = self.project_view_import_path.read_text(encoding="utf-8")
-                content = content.replace("PROJECT_NAME", self.project_name)
-                self.project_view_import_path.write_text(content, encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
-                Log.error("Error changing PROJECT_NAME in _ViewImports.csproj")
-
-
-        except subprocess.CalledProcessError:
+        except:
             Log.error("Core project creation failed")
             return
 
