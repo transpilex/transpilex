@@ -208,39 +208,16 @@ DJANGO_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 SLN_FILE_CREATION_COMMAND = "dotnet new sln -n"
 
 # Core
-CORE_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/core-boilerplate.git",
-    ".",
-]
-CORE_VITE_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/core-vite-boilerplate.git",
-    ".",
-]
+CORE_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-core.git"
 CORE_EXTENSION = ".cshtml"
 CORE_ADDITIONAL_EXTENSION = ".cshtml.cs"
 CORE_ASSETS_PATH = "wwwroot"
 CORE_VITE_ASSETS_PATH = "Assets"
 CORE_PARTIALS_PATH = "Pages/Shared/Partials"
 CORE_VARIABLE_REPLACEMENT = r"@\1"
-CORE_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-core.git"
 
 # MVC
-MVC_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/mvc-boilerplate.git",
-    ".",
-]
-MVC_VITE_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/mvc-vite-boilerplate.git",
-    ".",
-]
+MVC_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-mvc.git"
 MVC_EXTENSION = ".cshtml"
 MVC_ASSETS_PATH = "wwwroot"
 MVC_VITE_ASSETS_PATH = "Assets"
