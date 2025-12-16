@@ -360,3 +360,181 @@ def ask_project_config():
             plugins_folder=plugins_folder
         )
     }
+
+
+def process_cli_config(cli_args):
+    required_keys = ['project_name', 'framework', 'ui_library', 'frontend_pipeline', 'src_path', 'dest_path']
+    for key in required_keys:
+        if not cli_args.get(key):
+            raise ValueError(f"Missing required argument: --{key.replace('_', '-')}")
+
+    project_name = cli_args['project_name']
+    framework = cli_args['framework'].lower()
+    ui_library = cli_args['ui_library'].lower()
+    frontend_pipeline = cli_args['frontend_pipeline'].lower()
+    src_path_str = cli_args['src_path']
+    dest_path_str = cli_args['dest_path']
+
+    # if is_valid_project_name(project_name) is not True:
+    #     raise ValueError(f"Project name '{project_name}' is invalid. Only lowercase letters allowed.")
+    #
+    # if framework not in SUPPORTED_FRAMEWORKS:
+    #     raise ValueError(f"Framework '{framework}' is invalid. Supported: {', '.join(SUPPORTED_FRAMEWORKS)}")
+    #
+    # if ui_library not in UI_LIBRARIES:
+    #     raise ValueError(f"UI Library '{ui_library}' is invalid. Supported: {', '.join(UI_LIBRARIES)}")
+
+    # if validate_folder_exists(src_path_str) is not True:
+    #     raise ValueError(f"Source path '{src_path_str}' is invalid or does not exist.")
+    # if validate_folder_exists(dest_path_str) is not True:
+    #     raise ValueError(f"Destination path '{dest_path_str}' is invalid or does not exist.")
+
+    src_path = Path(src_path_str).resolve()
+    dest_path = Path(dest_path_str)
+
+    # if frontend_pipeline not in SUPPORTED_PIPELINES:
+    #     raise ValueError(f"Pipeline '{frontend_pipeline}' is invalid. Supported: {', '.join(SUPPORTED_PIPELINES)}")
+
+    if framework in VITE_ONLY and frontend_pipeline != 'vite':
+        raise ValueError(f"Framework '{framework}' is Vite-only. Pipeline must be 'vite'.")
+    elif framework not in VITE_ONLY and framework in SUPPORTED_FRAMEWORKS:
+        if frontend_pipeline not in SUPPORTED_PIPELINES:
+            raise ValueError(f"Pipeline '{frontend_pipeline}' is not valid for non-Vite-only frameworks.")
+
+    if framework in ['core', 'mvc']:
+        new_dest_path = dest_path / framework.title()
+        project_root_path = Path(new_dest_path / project_name.title())
+    else:
+        new_dest_path = dest_path / framework.lower()
+        project_root_path = Path(new_dest_path / project_name)
+
+    if folder_exists(project_root_path):
+        raise ValueError(f"Project already exists at: {project_root_path}")
+
+    # asset_paths = cli_args.get('asset_paths')
+    # partials_path = cli_args.get('partials_path')
+    # pages_path = Path(cli_args.get('pages_path', PAGES_PATH))
+
+    pages_path = Path(PAGES_PATH)
+    asset_paths = ASSETS_PATH if isinstance(ASSETS_PATH, (list, Path)) else (
+        Path(ASSETS_PATH) if ASSETS_PATH else None)
+    partials_path = Path(PARTIALS_PATH) if len(PARTIALS_PATH) > 0 else None
+
+    use_auth = cli_args.get('use_auth', False)
+    plugins_folder = cli_args.get('plugins_folder', GULP_PLUGINS_FOLDER)
+
+    if framework == "php":
+        if frontend_pipeline == "gulp":
+            project_assets_path = PHP_ASSETS_PATH
+            project_partials_path = PHP_PARTIALS_PATH
+        else:
+            project_assets_path = PHP_VITE_ASSETS_PATH
+            project_partials_path = PHP_VITE_PARTIALS_PATH
+        variable_replacement = PHP_VARIABLE_REPLACEMENT
+        file_extension = PHP_EXTENSION
+
+    elif framework == "laravel":
+        project_assets_path = LARAVEL_ASSETS_PATH
+        project_partials_path = LARAVEL_PARTIALS_PATH
+        variable_replacement = LARAVEL_VARIABLE_REPLACEMENT
+        file_extension = LARAVEL_EXTENSION
+
+    elif framework == "django":
+        project_assets_path = Path(project_name) / DJANGO_ASSETS_PATH
+        project_partials_path = Path(project_name) / DJANGO_PARTIALS_PATH
+        variable_replacement = DJANGO_VARIABLE_REPLACEMENT
+        file_extension = DJANGO_EXTENSION
+
+    elif framework == "core":
+        if frontend_pipeline == "gulp":
+            project_assets_path = CORE_ASSETS_PATH
+        else:
+            project_assets_path = CORE_VITE_ASSETS_PATH
+        project_partials_path = CORE_PARTIALS_PATH
+        variable_replacement = CORE_VARIABLE_REPLACEMENT
+        file_extension = CORE_EXTENSION
+
+    elif framework == "mvc":
+        if frontend_pipeline == "gulp":
+            project_assets_path = MVC_ASSETS_PATH
+        else:
+            project_assets_path = MVC_VITE_ASSETS_PATH
+        project_partials_path = MVC_PARTIALS_PATH
+        variable_replacement = MVC_VARIABLE_REPLACEMENT
+        file_extension = MVC_EXTENSION
+
+    elif framework == "ror":
+        if frontend_pipeline == "gulp":
+            project_assets_path = ROR_ASSETS_PATH
+        else:
+            project_assets_path = ROR_VITE_ASSETS_PATH
+        project_partials_path = ROR_PARTIALS_PATH
+        variable_replacement = ROR_VARIABLE_REPLACEMENT
+        file_extension = ROR_EXTENSION
+
+    elif framework == "cakephp":
+        project_assets_path = CAKEPHP_ASSETS_PATH
+        project_partials_path = CAKEPHP_PARTIALS_PATH
+        variable_replacement = CAKEPHP_VARIABLE_REPLACEMENT
+        file_extension = CAKEPHP_EXTENSION
+
+    elif framework == "codeigniter":
+        project_assets_path = CODEIGNITER_ASSETS_PATH
+        project_partials_path = CODEIGNITER_PARTIALS_PATH
+        variable_replacement = CODEIGNITER_VARIABLE_REPLACEMENT
+        file_extension = CODEIGNITER_EXTENSION
+
+    elif framework == "node":
+        project_assets_path = NODE_ASSETS_PATH
+        project_partials_path = NODE_PARTIALS_PATH
+        variable_replacement = NODE_VARIABLE_REPLACEMENT
+        file_extension = NODE_EXTENSION
+
+    elif framework == "flask":
+        project_assets_path = FLASK_ASSETS_PATH
+        project_partials_path = FLASK_PARTIALS_PATH
+        variable_replacement = FLASK_VARIABLE_REPLACEMENT
+        file_extension = FLASK_EXTENSION
+
+    elif framework == "symfony":
+        project_assets_path = SYMFONY_ASSETS_PATH
+        project_partials_path = SYMFONY_PARTIALS_PATH
+        variable_replacement = SYMFONY_VARIABLE_REPLACEMENT
+        file_extension = SYMFONY_EXTENSION
+
+    elif framework == "spring":
+        project_assets_path = SPRING_ASSETS_PATH
+        project_partials_path = SPRING_PARTIALS_PATH
+        variable_replacement = None
+        file_extension = SPRING_EXTENSION
+
+    else:
+        project_assets_path = None
+        project_partials_path = None
+        variable_replacement = None
+        file_extension = None
+
+    return {
+        "project_name": project_name,
+        "framework": framework,
+        "ui_library": ui_library,
+        "frontend_pipeline": frontend_pipeline,
+        "src_path": src_path,
+        "pages_path": pages_path,
+        "asset_paths": asset_paths,
+        "partials_path": partials_path,
+        "dest_path": new_dest_path,
+        "project_root_path": project_root_path,
+        "project_assets_path": Path(project_root_path / project_assets_path),
+        "project_partials_path": Path(project_root_path / project_partials_path),
+        "use_auth": use_auth,
+        "import_patterns": load_compiled_patterns(),
+        "variable_patterns": load_variable_patterns(),
+        "variable_replacement": variable_replacement,
+        "file_extension": file_extension,
+        "gulp_config": GulpConfig(
+            src_path=project_assets_path,
+            dest_path=project_assets_path,
+            plugins_folder=plugins_folder
+        )
+    }

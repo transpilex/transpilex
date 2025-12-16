@@ -63,9 +63,9 @@ class BasePHPConverter:
                 params = self._parse_handlebars_params(params_str)
                 if params:
                     php_vars = ''.join([f"${k} = {repr(v)}; " for k, v in params.items()])
-                    php_code = f"<?php {php_vars}include('./{str(self.config.partials_path).split('/')[-1]}/{path}.php'); ?>"
+                    php_code = f"<?php {php_vars}include('./{str(self.config.project_partials_path).split('/')[-1]}/{path}.php'); ?>"
                 else:
-                    php_code = f"<?php include('./{str(self.config.partials_path).split('/')[-1]}/{path}.php'); ?>"
+                    php_code = f"<?php include('./{str(self.config.project_partials_path).split('/')[-1]}/{path}.php'); ?>"
 
             content = content.replace(frag["full"], php_code)
 

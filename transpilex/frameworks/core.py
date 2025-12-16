@@ -13,7 +13,7 @@ from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import move_files, copy_items, file_exists
 from transpilex.utils.gulpfile import add_gulpfile
 from transpilex.utils.logs import Log
-from transpilex.utils.package_json import update_package_json
+from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
 from transpilex.utils.template import replace_file_with_template
@@ -639,13 +639,9 @@ class CoreViteConverter(BaseCoreConverter):
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
 
-        update_package_json(self.config)
-
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
-        if self.config.ui_library == "tailwind":
-            replace_file_with_template(Path(__file__).parent.parent / "templates" / "core-tw-vite.config.js",
-                                       self.config.project_root_path / "vite.config.js")
+        sync_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 
         Log.project_end(self.project_name, str(self.config.project_root_path))
 
