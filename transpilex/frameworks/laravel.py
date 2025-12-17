@@ -150,7 +150,7 @@ class LaravelConverter:
                 out = re.sub(r'(@yield\(.*?\))=""', r'\1', out)
                 file.write_text(out, encoding="utf-8")
 
-                Log.converted(f"{file}")
+                # Log.converted(f"{file}")
                 count += 1
                 continue
 
@@ -225,7 +225,7 @@ class LaravelConverter:
             final = self._replace_anchor_links_with_routes(final, self.route_map)
             file.write_text(final.strip() + "\n", encoding="utf-8")
 
-            Log.converted(f"{file}")
+            # Log.converted(f"{file}")
             count += 1
 
         Log.info(f"{count} files converted in {folder_path}")

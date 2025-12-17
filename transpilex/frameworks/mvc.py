@@ -116,7 +116,7 @@ class BaseMVCConverter:
                 out = out.replace("__AT__", "&#64;")
                 file.write_text(out, encoding="utf-8")
 
-                Log.converted(f"{file}")
+                # Log.converted(f"{file}")
                 count += 1
                 continue
 
@@ -187,7 +187,7 @@ class BaseMVCConverter:
 
             final = final.replace("__AT__", "&#64;")
             file.write_text(final.strip() + "\n", encoding="utf-8")
-            Log.converted(str(file))
+            # Log.converted(str(file))
             count += 1
 
         Log.info(f"{count} files converted in {self.project_views_path}")

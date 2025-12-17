@@ -80,7 +80,7 @@ class BaseCakePHPConverter:
 
             file.write_text(out.strip(), encoding="utf-8")
 
-            Log.converted(f"{file}")
+            # Log.converted(f"{file}")
             count += 1
 
         Log.info(f"{count} files converted in {self.project_pages_path}")

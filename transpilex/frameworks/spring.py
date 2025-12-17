@@ -542,7 +542,7 @@ class BaseSpringConverter:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(thymeleaf_output.strip() + "\n")
 
-        Log.converted(str(file_path))
+        # Log.converted(str(file_path))
 
     def _process_partial_file(self, file_path: Path):
         with open(file_path, "r", encoding="utf-8") as f:
@@ -585,7 +585,7 @@ class BaseSpringConverter:
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(final_output.strip() + "\n")
-        Log.converted(str(file_path))
+        # Log.converted(str(file_path))
 
     def _sanitize_action_name(self, controller_name: str, action_name: str) -> str:
         """

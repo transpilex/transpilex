@@ -18,6 +18,10 @@ def _get_restructured_path(src_file: Path, src_root: Path, dest_root: Path) -> P
     - Respects NO_NESTING_FOLDERS (flattens everything after those).
     """
 
+    src_root = Path(src_root).resolve()
+    dest_root = Path(dest_root).resolve()
+    src_file = Path(src_file).resolve()
+
     try:
         relative_path = src_file.relative_to(src_root)
     except ValueError:
@@ -92,86 +96,76 @@ def _get_restructured_path(src_file: Path, src_root: Path, dest_root: Path) -> P
         file = filename
 
     if stop_at_no_nest:
-        return Path(dest_root, folder_parts[0], file)
+        return (dest_root / folder_parts[0] / file).resolve()
 
-    return Path(dest_root, existing_parent, *folder_parts, file)
+    return (dest_root / existing_parent / Path(*folder_parts) / file).resolve()
 
 
 def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension: str = None,
                                case_style: str = "kebab"):
-    """
-    Recursively copies all HTML files from src_path to dest_path using your restructure logic,
-    optionally changing file/folder naming convention to kebab-case or PascalCase,
-    and returns a mapping of ORIGINAL html filenames -> NEW route path.
 
-    Args:
-        config: ProjectConfig object.
-        dest_path (Path): Destination directory path.
-        extension (str, optional): Extension for copied files.
-        case_style (str, optional): Naming style for files and folders ("kebab" or "pascal").
-                                   Defaults to "kebab".
-    """
+    dest_root = Path(dest_path).resolve()
+    source_root = Path(config.pages_path).resolve()
 
-    def _apply_case_style(path: Path) -> Path:
-        """
-        Apply casing (kebab/pascal/snake/camel) to subfolders and filenames,
-        but preserve the original casing of the project root path.
-        """
-        parts = []
-        for i, part in enumerate(path.parts):
+    def _apply_case_style(absolute_dest_file: Path) -> Path:
+        """Apply casing ONLY to the subfolders and filename, not the root path."""
+        try:
+            # Get the path portion AFTER the project root
+            relative_part = absolute_dest_file.relative_to(dest_root)
+            processed_parts = []
 
-            stem, ext = (part, "") if "." not in part else part.rsplit(".", 1)
+            for part in relative_part.parts:
+                stem, ext = (part, "") if "." not in part else part.rsplit(".", 1)
+                # Apply naming convention (e.g., kebab-case)
+                new_stem = apply_casing(stem, case_style or "kebab")
+                processed_parts.append(f"{new_stem}.{ext}" if ext else new_stem)
 
-            if case_style in ("pascal", "kebab", "snake", "camel"):
-                new_stem = apply_casing(stem, case_style)
-            else:
-                new_stem = apply_casing(stem, "kebab")  # fallback
+            # Reconstruct the absolute path
+            return dest_root / Path(*processed_parts)
+        except ValueError:
+            return absolute_dest_file
 
-            parts.append(f"{new_stem}.{ext}" if ext else new_stem)
-
-        return Path(*parts)
-
-    if not config.pages_path.is_dir():
-        Log.error(f"Source path is not a valid directory: {config.pages_path}")
+    if not source_root.is_dir():
+        Log.error(f"Source path is not a valid directory: {source_root}")
         return {}
 
     copied_count = 0
     route_map: dict[str, str] = {}
 
-    for src_file in config.pages_path.rglob("*.html"):
+    for src_file in source_root.rglob("*.html"):
         if not src_file.is_file():
             continue
 
-        # Apply restructure logic (as before)
-        dest_file = _get_restructured_path(src_file, config.pages_path, dest_path)
+        # Get initial path (resolved via updated _get_restructured_path)
+        dest_file = _get_restructured_path(src_file, source_root, dest_root)
+
+        # Apply casing to the project-relative parts only
         dest_file = _apply_case_style(dest_file)
 
+        # Add file extension
         if extension:
-            dest_file = dest_file.with_suffix(extension if extension.startswith('.') else f".{extension}")
+            ext_str = extension if extension.startswith('.') else f".{extension}"
+            dest_file = dest_file.with_suffix(ext_str)
 
         try:
+            # Create directory at the absolute location
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dest_file)
             copied_count += 1
 
-            # Route mapping
-            # Always kebab-case in URLs, regardless of file/folder case
-            try:
-                rel_dest = dest_file.relative_to(dest_path)
-            except ValueError:
-                # Fallback for case mismatches (normalize case)
-                rel_dest = Path(
-                    str(dest_file).lower().replace(str(dest_path).lower(), "", 1).lstrip("/\\")
-                )
-
+            # Route Mapping for the framework config
+            rel_dest = dest_file.relative_to(dest_root)
             no_ext = rel_dest.with_suffix("")
-            route_stem = apply_casing(no_ext.as_posix().removesuffix(".blade"), "kebab")
-            route_path = "/" + route_stem.lstrip("/")
 
+            clean_stem = no_ext.as_posix()
+            if ".blade" in clean_stem:
+                clean_stem = clean_stem.replace(".blade", "")
+
+            route_path = "/" + apply_casing(clean_stem, "kebab").lstrip("/")
             route_map[src_file.name] = route_path
 
         except Exception as e:
             Log.error(f"Failed to copy {src_file} to {dest_file}: {e}")
 
-    Log.info(f"Restructured {copied_count} files to '{dest_path}'")
+    Log.info(f"Restructured {copied_count} files to '{dest_root}'")
     return route_map

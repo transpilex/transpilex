@@ -68,8 +68,7 @@ def ask_project_config():
         "Project Name:",
         validate=is_valid_project_name,
         style=fresh_style,
-        qmark=CUSTOM_QMARK,
-        default="dhonu"
+        qmark=CUSTOM_QMARK
     ).ask())
 
     framework = safe_ask(questionary.select(
@@ -141,12 +140,22 @@ def ask_project_config():
         only_directories=True
     ).ask())
 
-    if framework in ['Core', 'MVC']:
-        new_dest_path = Path(dest_path) / framework.title()
-        project_root_path = Path(new_dest_path / project_name.title())
+    suffix = ""
+    if ui_library.lower() == "tailwind" and frontend_pipeline.lower() == "vite":
+        suffix = "-tw-vite"
+    elif ui_library.lower() == "tailwind":
+        suffix = "-tw"
+    elif frontend_pipeline.lower() == "vite":
+        suffix = "-vite"
+
+    # Construct the parent folder name
+    framework_folder = f"{framework.lower()}{suffix}"
+    new_dest_path = Path(dest_path) / framework_folder
+
+    if framework.lower() in ['core', 'mvc']:
+        project_root_path = new_dest_path / project_name.title()
     else:
-        new_dest_path = Path(dest_path) / framework.lower()
-        project_root_path = Path(new_dest_path / project_name)
+        project_root_path = new_dest_path / project_name
 
     if folder_exists(project_root_path):
         Log.error(f"Project already exists at: {project_root_path}")
@@ -372,28 +381,9 @@ def process_cli_config(cli_args):
     framework = cli_args['framework'].lower()
     ui_library = cli_args['ui_library'].lower()
     frontend_pipeline = cli_args['frontend_pipeline'].lower()
-    src_path_str = cli_args['src_path']
-    dest_path_str = cli_args['dest_path']
 
-    # if is_valid_project_name(project_name) is not True:
-    #     raise ValueError(f"Project name '{project_name}' is invalid. Only lowercase letters allowed.")
-    #
-    # if framework not in SUPPORTED_FRAMEWORKS:
-    #     raise ValueError(f"Framework '{framework}' is invalid. Supported: {', '.join(SUPPORTED_FRAMEWORKS)}")
-    #
-    # if ui_library not in UI_LIBRARIES:
-    #     raise ValueError(f"UI Library '{ui_library}' is invalid. Supported: {', '.join(UI_LIBRARIES)}")
-
-    # if validate_folder_exists(src_path_str) is not True:
-    #     raise ValueError(f"Source path '{src_path_str}' is invalid or does not exist.")
-    # if validate_folder_exists(dest_path_str) is not True:
-    #     raise ValueError(f"Destination path '{dest_path_str}' is invalid or does not exist.")
-
-    src_path = Path(src_path_str).resolve()
-    dest_path = Path(dest_path_str)
-
-    # if frontend_pipeline not in SUPPORTED_PIPELINES:
-    #     raise ValueError(f"Pipeline '{frontend_pipeline}' is invalid. Supported: {', '.join(SUPPORTED_PIPELINES)}")
+    src_path = Path(cli_args['src_path']).resolve()
+    dest_path = Path(cli_args['dest_path'])
 
     if framework in VITE_ONLY and frontend_pipeline != 'vite':
         raise ValueError(f"Framework '{framework}' is Vite-only. Pipeline must be 'vite'.")
@@ -401,24 +391,28 @@ def process_cli_config(cli_args):
         if frontend_pipeline not in SUPPORTED_PIPELINES:
             raise ValueError(f"Pipeline '{frontend_pipeline}' is not valid for non-Vite-only frameworks.")
 
+    suffix = ""
+    if ui_library == "tailwind" and frontend_pipeline == "vite":
+        suffix = "-tw-vite"
+    elif ui_library == "tailwind":
+        suffix = "-tw"
+    elif frontend_pipeline == "vite":
+        suffix = "-vite"
+
+    framework_folder = f"{framework}{suffix}"
+    new_dest_path = Path(dest_path) / framework_folder
+
     if framework in ['core', 'mvc']:
-        new_dest_path = dest_path / framework.title()
-        project_root_path = Path(new_dest_path / project_name.title())
+        project_root_path = new_dest_path / project_name.title()
     else:
-        new_dest_path = dest_path / framework.lower()
-        project_root_path = Path(new_dest_path / project_name)
+        project_root_path = new_dest_path / project_name
 
     if folder_exists(project_root_path):
         raise ValueError(f"Project already exists at: {project_root_path}")
 
-    # asset_paths = cli_args.get('asset_paths')
-    # partials_path = cli_args.get('partials_path')
-    # pages_path = Path(cli_args.get('pages_path', PAGES_PATH))
-
-    pages_path = Path(PAGES_PATH)
-    asset_paths = ASSETS_PATH if isinstance(ASSETS_PATH, (list, Path)) else (
-        Path(ASSETS_PATH) if ASSETS_PATH else None)
-    partials_path = Path(PARTIALS_PATH) if len(PARTIALS_PATH) > 0 else None
+    pages_path = src_path / 'src'
+    asset_paths = pages_path / 'assets'
+    partials_path = pages_path / 'partials'
 
     use_auth = cli_args.get('use_auth', False)
     plugins_folder = cli_args.get('plugins_folder', GULP_PLUGINS_FOLDER)

@@ -172,7 +172,7 @@ class BaseFlaskConverter:
             with open(file, "w", encoding="utf-8") as f:
                 f.write(final_output + "\n")
 
-            Log.converted(str(file))
+            # Log.converted(str(file))
             count += 1
 
         Log.info(f"{count} files converted in {self.project_pages_path}")

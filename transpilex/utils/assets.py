@@ -15,26 +15,8 @@ def copy_assets(
 ):
     """
     Copy all assets from one or more source folders into a destination folder.
-
-    Behavior:
-    - Removes everything inside destination except items listed in `preserve`.
-    - Skips copying files/folders from source that match names in `exclude`.
-    - When multiple source folders are given, each is copied into a subfolder
-      named after the source folder's last part.
-
-    Args:
-        asset_paths (Path | list[str | Path]): Source folder(s) to copy from.
-        destination_folder (str | Path): Destination folder where assets should go.
-        preserve (list[str]): Items in destination to keep (not deleted).
-        exclude (list[str]): Source file/folder names to skip during copy.
     """
-
-    cwd = Path.cwd()
-    destination_folder = Path(destination_folder)
-
-    if destination_folder.is_absolute() and not str(destination_folder).startswith(str(cwd)):
-        destination_folder = cwd / destination_folder.relative_to("/")
-
+    # Simply resolve the destination folder without forcing it into CWD
     destination_folder = Path(destination_folder).resolve()
 
     preserve = set(preserve or [])
@@ -78,14 +60,8 @@ def copy_assets(
             except Exception as e:
                 Log.warning(f"Failed to copy {item}: {e}")
 
-    rel_dest = (
-        destination_folder.relative_to(cwd)
-        if destination_folder.is_relative_to(cwd)
-        else destination_folder
-    )
-
     Log.info(
-        f"All assets copied to {rel_dest} (preserved: {', '.join(preserve) or 'none'}; excluded: {', '.join(exclude) or 'none'})")
+        f"All assets copied to {destination_folder} (preserved: {', '.join(preserve) or 'none'}; excluded: {', '.join(exclude) or 'none'})")
 
 
 def copy_public_only_assets(

@@ -130,7 +130,7 @@ class BasePHPConverter:
                 try:
                     with open(file, "w", encoding="utf-8") as f:
                         f.write(content)
-                    Log.converted(str(file))
+                    # Log.converted(str(file))
                     count += 1
                 except Exception as e:
                     Log.error(f"Failed to write {file}: {e}")

@@ -115,7 +115,7 @@ class BaseSymfonyConverter:
                 out = re.sub(r'(\{\{.*?\}\})=""', r'\1', out)
 
                 file.write_text(out, encoding="utf-8")
-                Log.converted(f"{file}")
+                # Log.converted(f"{file}")
                 count += 1
                 continue
 
@@ -168,7 +168,7 @@ class BaseSymfonyConverter:
 
             file.write_text(out.strip() + "\n", encoding="utf-8")
 
-            Log.converted(f"{file}")
+            # Log.converted(f"{file}")
             count += 1
 
         Log.info(f"{count} files converted into {self.project_templates_path}")

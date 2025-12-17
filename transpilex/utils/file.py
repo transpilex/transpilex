@@ -56,7 +56,7 @@ def copy_and_change_extension(
 
         shutil.copy2(src_file, dest_file)
 
-    Log.info(f"{len(files)} files processed and saved in {destination_folder.relative_to(Path.cwd())} with '{new_extension}' extension.")
+    # Log.info(f"{len(files)} files processed and saved in {destination_folder.relative_to(Path.cwd())} with '{new_extension}' extension.")
 
 
 def folder_exists(folder_path: Path) -> bool:
@@ -142,19 +142,19 @@ def copy_items(
                             sub_target.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(item, sub_target)
 
-                        try:
-                            src_rel = item.relative_to(Path.cwd())
-                        except ValueError:
-                            src_rel = item.name
-
-                        Log.copied(f"{src_rel} → {target}")
+                        # try:
+                        #     src_rel = item.relative_to(Path.cwd())
+                        # except ValueError:
+                        #     src_rel = item.name
+                        #
+                        # Log.copied(f"{src_rel} → {target}")
                 else:
                     # Default: copy the source folder itself
                     shutil.copytree(source, target, dirs_exist_ok=True)
-                    Log.copied(f"{source.name} -> {target}")
+                    # Log.copied(f"{source.name} -> {target}")
             elif source.is_file():
                 shutil.copy2(source, target)
-                Log.copied(f"{source.name} -> {target}")
+                # Log.copied(f"{source.name} -> {target}")
         except Exception as e:
             Log.error(f"Failed to copy {source.name} to {target}: {e}")
 
@@ -163,15 +163,15 @@ def move_files(source_folder: Path, destination_folder: Path, ignore_list: list[
     """
     Moves all files from source_folder to destination_folder.
     Ignores files listed in ignore_list (if provided).
-
-    :param source_folder: Path to the folder containing files to move.
-    :param destination_folder: Destination folder path.
-    :param ignore_list: Optional list of filenames to skip.
     """
     if ignore_list is None:
         ignore_list = []
 
     source_folder = Path(source_folder)
+
+    if not source_folder.exists():
+        return
+
     destination_folder = Path(destination_folder)
     destination_folder.mkdir(parents=True, exist_ok=True)
 
@@ -180,8 +180,11 @@ def move_files(source_folder: Path, destination_folder: Path, ignore_list: list[
             destination = destination_folder / file_path.name
             shutil.move(str(file_path), str(destination))
 
-    if not any(source_folder.iterdir()):
-        source_folder.rmdir()
+    try:
+        if not any(source_folder.iterdir()):
+            source_folder.rmdir()
+    except FileNotFoundError:
+        pass
 
 
 def remove_item(path_to_remove: Path):

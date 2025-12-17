@@ -1,4 +1,5 @@
 import argparse
+import traceback
 from pathlib import Path
 
 from transpilex.cli.prompts import ask_project_config, process_cli_config
@@ -50,12 +51,12 @@ def parse_args():
     parser.add_argument(
         '-s', '--src-path',
         type=str,
-        help='Path to the source folder (e.g., "./src").'
+        help='Path to the source folder'
     )
     parser.add_argument(
         '-d', '--dest-path',
         type=str,
-        help='Path to the destination folder (e.g., "./projects").'
+        help='Path to the destination folder'
     )
 
     return parser.parse_args()
@@ -128,5 +129,7 @@ def main():
         elif project_config["framework"] == "spring":
             SpringConverter(config)
         return 0
-    except:
+    except Exception as e:
+        Log.error(f"Transpilation failed: {e}")
+        traceback.print_exc()
         return 1
