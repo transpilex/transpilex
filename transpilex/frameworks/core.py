@@ -2,7 +2,7 @@ import re
 import json
 import html
 from pathlib import Path
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
 from cookiecutter.main import cookiecutter
 
 from transpilex.config.base import CORE_ADDITIONAL_EXTENSION, CORE_COOKIECUTTER_REPO
@@ -16,7 +16,6 @@ from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
-from transpilex.utils.template import replace_file_with_template
 
 
 class BaseCoreConverter:

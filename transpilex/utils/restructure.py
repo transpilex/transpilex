@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -7,6 +8,10 @@ from transpilex.config.project import ProjectConfig
 from transpilex.utils.casing import apply_casing
 from transpilex.utils.logs import Log
 
+def to_kebab_case(text: str) -> str:
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1-\2', text)
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1-\2', s1)
+    return re.sub(r'[-_]+', '-', s2).lower().strip('-')
 
 def _get_restructured_path(src_file: Path, src_root: Path, dest_root: Path) -> Path:
     """
@@ -103,24 +108,24 @@ def _get_restructured_path(src_file: Path, src_root: Path, dest_root: Path) -> P
 
 def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension: str = None,
                                case_style: str = "kebab"):
-
+    """
+    Restructures HTML files based on keywords and copies them to the destination.
+    Generates a route_map that preserves hyphens by processing path segments individually.
+    """
     dest_root = Path(dest_path).resolve()
     source_root = Path(config.pages_path).resolve()
 
     def _apply_case_style(absolute_dest_file: Path) -> Path:
         """Apply casing ONLY to the subfolders and filename, not the root path."""
         try:
-            # Get the path portion AFTER the project root
             relative_part = absolute_dest_file.relative_to(dest_root)
             processed_parts = []
 
             for part in relative_part.parts:
                 stem, ext = (part, "") if "." not in part else part.rsplit(".", 1)
-                # Apply naming convention (e.g., kebab-case)
                 new_stem = apply_casing(stem, case_style or "kebab")
                 processed_parts.append(f"{new_stem}.{ext}" if ext else new_stem)
 
-            # Reconstruct the absolute path
             return dest_root / Path(*processed_parts)
         except ValueError:
             return absolute_dest_file
@@ -136,10 +141,10 @@ def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension
         if not src_file.is_file():
             continue
 
-        # Get initial path (resolved via updated _get_restructured_path)
+        # Determine disk location using your existing logic
         dest_file = _get_restructured_path(src_file, source_root, dest_root)
 
-        # Apply casing to the project-relative parts only
+        # Apply casing to the disk path
         dest_file = _apply_case_style(dest_file)
 
         # Add file extension
@@ -148,20 +153,21 @@ def restructure_and_copy_files(config: ProjectConfig, dest_path: Path, extension
             dest_file = dest_file.with_suffix(ext_str)
 
         try:
-            # Create directory at the absolute location
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_file, dest_file)
             copied_count += 1
 
-            # Route Mapping for the framework config
+            # Get relative path (e.g., Apps/IssueTracker.razor)
             rel_dest = dest_file.relative_to(dest_root)
-            no_ext = rel_dest.with_suffix("")
+            pure_path = rel_dest.parent / rel_dest.stem
 
-            clean_stem = no_ext.as_posix()
-            if ".blade" in clean_stem:
-                clean_stem = clean_stem.replace(".blade", "")
+            route_segments = []
+            for part in pure_path.parts:
+                # Use the robust kebab logic on each part individually
+                clean_segment = to_kebab_case(part)
+                route_segments.append(clean_segment)
 
-            route_path = "/" + apply_casing(clean_stem, "kebab").lstrip("/")
+            route_path = "/" + "/".join(route_segments)
             route_map[src_file.name] = route_path
 
         except Exception as e:

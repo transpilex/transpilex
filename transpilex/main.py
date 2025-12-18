@@ -4,6 +4,7 @@ from pathlib import Path
 
 from transpilex.cli.prompts import ask_project_config, process_cli_config
 from transpilex.config.project import ProjectConfig
+from transpilex.frameworks.blazor import BlazorConverter
 from transpilex.frameworks.cakephp import CakePHPConverter
 from transpilex.frameworks.codeigniter import CodeIgniterConverter
 from transpilex.frameworks.core import CoreConverter
@@ -128,6 +129,8 @@ def main():
             SymfonyConverter(config)
         elif project_config["framework"] == "spring":
             SpringConverter(config)
+        elif project_config["framework"] == "blazor":
+            BlazorConverter(config)
         return 0
     except Exception as e:
         Log.error(f"Transpilation failed: {e}")

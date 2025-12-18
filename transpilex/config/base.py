@@ -10,7 +10,8 @@ SUPPORTED_FRAMEWORKS = [
     "Node",
     "Flask",
     "Symfony",
-    "Spring"
+    "Spring",
+    "Blazor"
 ]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
@@ -325,6 +326,13 @@ SPRING_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-spring-bo
 SPRING_EXTENSION = '.html'
 SPRING_ASSETS_PATH = "src/main/resources/static"
 SPRING_PARTIALS_PATH = "src/main/resources/templates/shared/partials"
+
+# Blazor
+BLAZOR_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-blazor.git"
+BLAZOR_EXTENSION = '.razor'
+BLAZOR_ASSETS_PATH = "wwwroot"
+BLAZOR_PARTIALS_PATH = "Components/Layout/Partials"
+BLAZOR_VARIABLE_REPLACEMENT = r"@\1"
 
 RESERVE_KEYWORDS = {
     "abstract", "continue", "for", "new", "switch",

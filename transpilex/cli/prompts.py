@@ -17,7 +17,8 @@ from transpilex.config.base import (
     CODEIGNITER_VARIABLE_REPLACEMENT, CODEIGNITER_EXTENSION, NODE_VARIABLE_REPLACEMENT, NODE_EXTENSION,
     NODE_PARTIALS_PATH, NODE_ASSETS_PATH, FLASK_ASSETS_PATH, FLASK_PARTIALS_PATH, FLASK_VARIABLE_REPLACEMENT,
     FLASK_EXTENSION, SYMFONY_ASSETS_PATH, SYMFONY_PARTIALS_PATH, SYMFONY_VARIABLE_REPLACEMENT,
-    SYMFONY_EXTENSION, SPRING_ASSETS_PATH, SPRING_PARTIALS_PATH, SPRING_EXTENSION
+    SYMFONY_EXTENSION, SPRING_ASSETS_PATH, SPRING_PARTIALS_PATH, SPRING_EXTENSION, BLAZOR_ASSETS_PATH,
+    BLAZOR_PARTIALS_PATH, BLAZOR_VARIABLE_REPLACEMENT, BLAZOR_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -256,6 +257,12 @@ def ask_project_config():
         project_partials_path = SPRING_PARTIALS_PATH
         variable_replacement = None
         file_extension = SPRING_EXTENSION
+
+    elif framework == "blazor":
+        project_assets_path = BLAZOR_ASSETS_PATH
+        project_partials_path = BLAZOR_PARTIALS_PATH
+        variable_replacement = BLAZOR_VARIABLE_REPLACEMENT
+        file_extension = BLAZOR_EXTENSION
 
     else:
         project_assets_path = None
@@ -501,6 +508,12 @@ def process_cli_config(cli_args):
         project_partials_path = SPRING_PARTIALS_PATH
         variable_replacement = None
         file_extension = SPRING_EXTENSION
+
+    elif framework == "blazor":
+        project_assets_path = BLAZOR_ASSETS_PATH
+        project_partials_path = BLAZOR_PARTIALS_PATH
+        variable_replacement = BLAZOR_VARIABLE_REPLACEMENT
+        file_extension = BLAZOR_EXTENSION
 
     else:
         project_assets_path = None
