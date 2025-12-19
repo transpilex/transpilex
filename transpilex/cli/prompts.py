@@ -153,7 +153,7 @@ def ask_project_config():
     framework_folder = f"{framework.lower()}{suffix}"
     new_dest_path = Path(dest_path) / framework_folder
 
-    if framework.lower() in ['core', 'mvc']:
+    if framework.lower() in ['core', 'mvc', 'blazor']:
         project_root_path = new_dest_path / project_name.title()
     else:
         project_root_path = new_dest_path / project_name
@@ -409,7 +409,7 @@ def process_cli_config(cli_args):
     framework_folder = f"{framework}{suffix}"
     new_dest_path = Path(dest_path) / framework_folder
 
-    if framework in ['core', 'mvc']:
+    if framework in ['core', 'mvc', 'blazor']:
         project_root_path = new_dest_path / project_name.title()
     else:
         project_root_path = new_dest_path / project_name
