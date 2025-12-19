@@ -106,7 +106,7 @@ class BaseSymfonyConverter:
 
                 # Restore handlebars
                 for key, original in placeholder_map.items():
-                    Log.error(f"{key} {original}")
+                    # Log.error(f"{key} {original}")
                     out = out.replace(key, original)
 
                 out = replace_html_links(out, '')
@@ -123,8 +123,22 @@ class BaseSymfonyConverter:
             for tag in soup.find_all("link"):
                 tag.decompose()
 
-            scripts_html = "\n".join(str(tag) for tag in soup.find_all("script"))
+            scripts_to_move = []
+            script_to_exclude = "document.write(new Date().getFullYear())"
+
             for tag in soup.find_all("script"):
+                # Check if the tag's text content matches the one to exclude
+                if tag.get_text(strip=True) == script_to_exclude:
+                    # If it matches, do nothing. Leave it in the main content.
+                    pass
+                else:
+                    # For ALL other scripts (inline or external), add them to the move list.
+                    scripts_to_move.append(tag)
+
+            scripts_html = "\n    ".join([str(tag) for tag in scripts_to_move])
+
+            tags_to_decompose = scripts_to_move
+            for tag in tags_to_decompose:
                 tag.decompose()
 
             content_div = soup.find(attrs={"data-content": True})

@@ -111,11 +111,21 @@ class BlazorConverter:
             js_import_paths = []
             for tag in soup.find_all('script'):
                 src = tag.get('src')
+
                 if src:
-                    # Exclude core vendors that are likely in MainLayout already
+                    # Handle external scripts
                     if not any(ex in src for ex in ["plugins/", "vendors/", "libs/", "plugin/", "vendor/", "lib/"]):
                         normalized_src = src.replace("assets/", "./")
                         js_import_paths.append(normalized_src)
+                else:
+                    # Handle inline scripts (No 'src')
+                    script_content = tag.string
+                    if script_content and "new Date().getFullYear()" in script_content:
+                        # Replace the entire script tag with the Razor expression
+                        tag.replace_with(soup.new_string("@DateTime.Now.Year"))
+                        continue  # Skip decompose so we don't delete the replacement we just made
+
+                # Remove the tag from the HTML (unless it was the Date replacement)
                 tag.decompose()
 
             # Clean head tags
