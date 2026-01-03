@@ -63,5 +63,5 @@ class Log:
 
     @staticmethod
     def project_end(project_name: str, location: str):
-        Log._print(f"Project setup completed for '{project_name}' at {location} ✨",
+        Log._print(f"Project setup completed for '{project_name}' at {location}",
                    LOG_COLORS["INFO"])

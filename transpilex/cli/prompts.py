@@ -142,11 +142,7 @@ def ask_project_config():
     ).ask())
 
     suffix = ""
-    if ui_library.lower() == "tailwind" and frontend_pipeline.lower() == "vite":
-        suffix = "-tw-vite"
-    elif ui_library.lower() == "tailwind":
-        suffix = "-tw"
-    elif frontend_pipeline.lower() == "vite":
+    if frontend_pipeline.lower() == "vite":
         suffix = "-vite"
 
     # Construct the parent folder name
@@ -399,11 +395,7 @@ def process_cli_config(cli_args):
             raise ValueError(f"Pipeline '{frontend_pipeline}' is not valid for non-Vite-only frameworks.")
 
     suffix = ""
-    if ui_library == "tailwind" and frontend_pipeline == "vite":
-        suffix = "-tw-vite"
-    elif ui_library == "tailwind":
-        suffix = "-tw"
-    elif frontend_pipeline == "vite":
+    if frontend_pipeline == "vite":
         suffix = "-vite"
 
     framework_folder = f"{framework}{suffix}"
