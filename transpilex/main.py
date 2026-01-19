@@ -9,6 +9,7 @@ from transpilex.frameworks.cakephp import CakePHPConverter
 from transpilex.frameworks.codeigniter import CodeIgniterConverter
 from transpilex.frameworks.core import CoreConverter
 from transpilex.frameworks.django import DjangoConverter
+from transpilex.frameworks.fastapi import FastApiConverter
 from transpilex.frameworks.flask import FlaskConverter
 from transpilex.frameworks.laravel import LaravelConverter
 from transpilex.frameworks.mvc import MVCConverter
@@ -131,6 +132,8 @@ def main():
             SpringConverter(config)
         elif project_config["framework"] == "blazor":
             BlazorConverter(config)
+        elif project_config["framework"] == "fastapi":
+            FastApiConverter(config)
         return 0
     except Exception as e:
         Log.error(f"Transpilation failed: {e}")

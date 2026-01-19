@@ -27,8 +27,6 @@ class BaseCoreConverter:
         self.project_partials_path = Path(self.project_shared_path / "Partials")
         self.project_public_path = Path(self.config.project_root_path / "wwwroot")
 
-        self.project_view_import_path = Path(self.project_pages_path / "_ViewImports.cshtml")
-
         self.route_map = None
 
     def init_create_project(self):
@@ -403,15 +401,14 @@ namespace {namespace}
 
                 if route_path == "/index":
                     return 'href="/"'
-
                 return f'href="{route_path}"'
 
             return match.group(0)
 
         content = pattern.sub(repl, content)
 
-        content = content.replace('href="/#', 'href="#')
-        content = content.replace('href="/javascript:void(0);', 'href="javascript:void(0);')
+        # removes the leading slash if it exists
+        content = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', content)
 
         return content
 

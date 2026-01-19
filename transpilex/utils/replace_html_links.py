@@ -5,6 +5,9 @@ def replace_html_links(content: str, new_extension: str) -> str:
     def replace_match(match):
         original_url = match.group(1)
 
+        if ".html" not in original_url:
+            return original_url
+
         if original_url.startswith(('http://', 'https://', '//', '/')):
             if original_url.endswith(".html"):
                 temp_url_without_html = original_url.replace(".html", "")
@@ -12,24 +15,21 @@ def replace_html_links(content: str, new_extension: str) -> str:
                     return temp_url_without_html if not temp_url_without_html.endswith("/index") else "/"
                 else:
                     return temp_url_without_html + new_extension
-            else:
-                return original_url
+            return original_url
 
         if original_url.endswith(".html"):
             temp_url_without_html = original_url.replace(".html", "")
-
             if new_extension == "":
-                processed_url_segment = temp_url_without_html if not temp_url_without_html.endswith("index") else ""
-                final_url = "/" + processed_url_segment
-                if final_url == "//":
-                    final_url = "/"
-                return final_url
+                if temp_url_without_html == "index" or temp_url_without_html.endswith("/index"):
+                    return "/" if temp_url_without_html == "index" else temp_url_without_html[:-5]
+                return temp_url_without_html
             else:
                 return temp_url_without_html + new_extension
-        else:
-            return original_url
+
+        return original_url
 
     content = re.sub(r"""(?<=href=['"])([^'"]+)(?=['"])""", replace_match, content)
     content = re.sub(r"""(?<=action=['"])([^'"]+)(?=['"])""", replace_match, content)
+    content = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', content)
 
     return content

@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, NavigableString
 from transpilex.config.base import LARAVEL_PROJECT_WITH_AUTH_CREATION_COMMAND, \
     LARAVEL_PROJECT_CREATION_COMMAND, LARAVEL_RESOURCES_PRESERVE
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_assets, copy_public_only_assets
+from transpilex.utils.assets import copy_assets, copy_public_only_assets, replace_asset_paths
 from transpilex.utils.file import move_files, copy_items
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.logs import Log
@@ -69,6 +69,7 @@ class LaravelConverter:
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only,
                         preserve=LARAVEL_RESOURCES_PRESERVE)
+            replace_asset_paths(self.config.project_assets_path, '/public')
 
         update_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 
@@ -470,6 +471,7 @@ export default defineConfig({{
             href_file = Path(href_val).name
             if href_file in route_map:
                 route_path = route_map[href_file]
+                route_path = route_path.replace(".blade.php", "").replace(".blade", "")
                 if route_path == "/index":
                     return f"href=\"{{{{ url('/') }}}}\""
                 return f"href=\"{{{{ url('{route_path}') }}}}\""

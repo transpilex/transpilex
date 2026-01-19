@@ -18,7 +18,8 @@ from transpilex.config.base import (
     NODE_PARTIALS_PATH, NODE_ASSETS_PATH, FLASK_ASSETS_PATH, FLASK_PARTIALS_PATH, FLASK_VARIABLE_REPLACEMENT,
     FLASK_EXTENSION, SYMFONY_ASSETS_PATH, SYMFONY_PARTIALS_PATH, SYMFONY_VARIABLE_REPLACEMENT,
     SYMFONY_EXTENSION, SPRING_ASSETS_PATH, SPRING_PARTIALS_PATH, SPRING_EXTENSION, BLAZOR_ASSETS_PATH,
-    BLAZOR_PARTIALS_PATH, BLAZOR_VARIABLE_REPLACEMENT, BLAZOR_EXTENSION
+    BLAZOR_PARTIALS_PATH, BLAZOR_VARIABLE_REPLACEMENT, BLAZOR_EXTENSION, FASTAPI_ASSETS_PATH, FASTAPI_PARTIALS_PATH,
+    FASTAPI_VARIABLE_REPLACEMENT, FASTAPI_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -259,6 +260,12 @@ def ask_project_config():
         project_partials_path = BLAZOR_PARTIALS_PATH
         variable_replacement = BLAZOR_VARIABLE_REPLACEMENT
         file_extension = BLAZOR_EXTENSION
+
+    elif framework == "fastapi":
+        project_assets_path = FASTAPI_ASSETS_PATH
+        project_partials_path = FASTAPI_PARTIALS_PATH
+        variable_replacement = FASTAPI_VARIABLE_REPLACEMENT
+        file_extension = FASTAPI_EXTENSION
 
     else:
         project_assets_path = None
@@ -506,6 +513,12 @@ def process_cli_config(cli_args):
         project_partials_path = BLAZOR_PARTIALS_PATH
         variable_replacement = BLAZOR_VARIABLE_REPLACEMENT
         file_extension = BLAZOR_EXTENSION
+
+    elif framework == "fastapi":
+        project_assets_path = FASTAPI_ASSETS_PATH
+        project_partials_path = FASTAPI_PARTIALS_PATH
+        variable_replacement = FASTAPI_VARIABLE_REPLACEMENT
+        file_extension = FASTAPI_EXTENSION
 
     else:
         project_assets_path = None

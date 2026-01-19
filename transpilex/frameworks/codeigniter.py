@@ -1,18 +1,17 @@
 import json
 import re
-import subprocess
 import html
 from pathlib import Path
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
+from cookiecutter.main import cookiecutter
 
-from transpilex.config.base import CODEIGNITER_ASSETS_PRESERVE, CODEIGNITER_PROJECT_CREATION_COMMAND
+from transpilex.config.base import CODEIGNITER_ASSETS_PRESERVE, CODEIGNITER_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, clean_relative_asset_paths
-from transpilex.utils.file import copy_items, find_files_with_extension, copy_and_change_extension
-from transpilex.utils.git import remove_git_folders
-from transpilex.utils.gulpfile import add_gulpfile
+from transpilex.utils.file import copy_items, find_files_with_extension, copy_and_change_extension, file_exists
+from transpilex.utils.gulpfile import add_gulpfile, has_plugins_config
 from transpilex.utils.logs import Log
-from transpilex.utils.package_json import update_package_json
+from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.replace_variables import replace_variables
 
@@ -25,19 +24,25 @@ class BaseCodeIgniterConverter:
 
     def init_create_project(self):
         try:
-            self.config.project_root_path.mkdir(parents=True, exist_ok=True)
+            has_plugins_file = False
 
-            subprocess.run(
-                CODEIGNITER_PROJECT_CREATION_COMMAND,
-                cwd=self.config.project_root_path,
-                check=True,
-                capture_output=True, text=True)
+            if file_exists(self.config.src_path / "plugins.config.js"):
+                has_plugins_file = True
+
+            cookiecutter(
+                CODEIGNITER_COOKIECUTTER_REPO,
+                output_dir=str(self.config.project_root_path.parent),
+                no_input=True,
+                extra_context={'name': self.config.project_name,
+                               'ui_library': self.config.ui_library.title(),
+                               'frontend_pipeline': self.config.frontend_pipeline.title(),
+                               'has_plugins_config': 'y' if has_plugins_file and self.config.frontend_pipeline == 'gulp' else 'n'
+                               },
+            )
 
             Log.success("Codeigniter project created successfully")
 
-            remove_git_folders(self.config.project_root_path)
-
-        except subprocess.CalledProcessError:
+        except:
             Log.error("Codeigniter project creation failed")
             return
 
@@ -176,11 +181,11 @@ class CodeIgniterGulpConverter(BaseCodeIgniterConverter):
             copy_assets(self.config.asset_paths, self.config.project_assets_path, preserve=CODEIGNITER_ASSETS_PRESERVE)
             replace_asset_paths(self.config.project_assets_path, '')
 
-        add_gulpfile(self.config)
+        has_plugins_config(self.config)
 
-        update_package_json(self.config)
+        copy_items(Path(self.config.src_path / "package-lock.json"),self.config.project_root_path)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 

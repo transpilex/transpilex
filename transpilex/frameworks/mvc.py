@@ -17,7 +17,6 @@ from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
-from transpilex.utils.template import replace_file_with_template
 
 
 class BaseMVCConverter:
@@ -382,8 +381,8 @@ class BaseMVCConverter:
         out = out.replace('href="/index.html"', 'href="/"')
         out = out.replace('href="index.html"', 'href="/"')
 
-        out = out.replace('href="/#', 'href="#')
-        out = out.replace('href="/javascript:void(0);', 'href="javascript:void(0);')
+        # removes the leading slash if it exists
+        out = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', out)
 
         return out
 

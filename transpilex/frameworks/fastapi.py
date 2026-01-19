@@ -1,43 +1,48 @@
 import re
-import subprocess
+import html
 import ast
 from pathlib import Path
 from bs4 import BeautifulSoup
+from cookiecutter.main import cookiecutter
 
-from transpilex.config.base import FLASK_PROJECT_CREATION_COMMAND_AUTH, FLASK_PROJECT_CREATION_COMMAND
+from transpilex.config.base import FASTAPI_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths
-from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, copy_items, move_files
-from transpilex.utils.git import remove_git_folders
-from transpilex.utils.gulpfile import add_gulpfile
+from transpilex.utils.file import file_exists, find_files_with_extension, copy_and_change_extension, move_files, \
+    copy_items
+from transpilex.utils.gulpfile import has_plugins_config
 from transpilex.utils.logs import Log
-from transpilex.utils.package_json import update_package_json
+from transpilex.utils.package_json import sync_package_json
 from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.replace_variables import replace_variables
 
 
-class BaseFlaskConverter:
-    def __init__(self, config: ProjectConfig):
+class BaseFastApiConverter:
+    def __init__(self, config):
         self.config = config
-
         self.project_pages_path = Path(self.config.project_root_path / "apps" / "templates" / "pages")
 
     def init_create_project(self):
         try:
-            self.config.project_root_path.mkdir(parents=True, exist_ok=True)
+            has_plugins_file = False
 
-            subprocess.run(
-                FLASK_PROJECT_CREATION_COMMAND_AUTH if self.config.use_auth else FLASK_PROJECT_CREATION_COMMAND,
-                cwd=self.config.project_root_path,
-                check=True,
-                capture_output=True, text=True)
+            if file_exists(self.config.src_path / "plugins.config.js"):
+                has_plugins_file = True
 
-            Log.success("Flask project created successfully")
+            cookiecutter(
+                FASTAPI_COOKIECUTTER_REPO,
+                output_dir=str(self.config.project_root_path.parent),
+                no_input=True,
+                extra_context={'name': self.config.project_name,
+                               'ui_library': self.config.ui_library.title(),
+                               'frontend_pipeline': self.config.frontend_pipeline.title(),
+                               'has_plugins_config': 'y' if has_plugins_file and self.config.frontend_pipeline == 'gulp' else 'n'
+                               },
+            )
 
-            remove_git_folders(self.config.project_root_path)
-
-        except subprocess.CalledProcessError:
-            Log.error("Flask project creation failed")
+            Log.success("Fast API project created successfully")
+        except:
+            Log.error("Fast API project creation failed")
             return
 
         files = find_files_with_extension(self.config.pages_path)
@@ -49,6 +54,7 @@ class BaseFlaskConverter:
             move_files(Path(self.project_pages_path / "partials"), self.config.project_partials_path)
             replace_variables(self.config.project_partials_path, self.config.variable_patterns,
                               self.config.variable_replacement, self.config.file_extension)
+
 
     def _convert(self):
         """
@@ -107,16 +113,27 @@ class BaseFlaskConverter:
                 else:
                     content = compiled.sub(lambda m: self._replace_all_includes_with_flask(m.group(0)), content)
 
-            final_output = self._replace_asset_links_with_static(content)
-            final_output = replace_html_links(final_output, '')
+            soup = BeautifulSoup(content, "html.parser")
 
-            soup = BeautifulSoup(final_output, "html.parser")
+            is_partial = "partials" in file.parts or "layouts" in file.parts
+
+            if is_partial:
+
+                out = str(soup)
+
+                out = replace_html_links(out, '')
+                out = self._replace_asset_links_with_static(out)
+
+                file.write_text(out, encoding="utf-8")
+                # Log.converted(f"{file}")
+                count += 1
+                continue
 
             is_layout = bool(soup.find("body") or soup.find(attrs={"data-content": True}))
 
             if is_layout:
-                soup_for_extraction = BeautifulSoup(final_output, "html.parser")
-                head_tag = soup_for_extraction.find("head")
+
+                head_tag = soup.find("head")
                 links_html = "\n".join(str(tag) for tag in head_tag.find_all("link")) if head_tag else ""
 
                 def is_year_script(tag):
@@ -125,30 +142,34 @@ class BaseFlaskConverter:
                 scripts_to_move = []
                 if self.config.frontend_pipeline == "gulp":
                     scripts_to_move = [
-                        str(s) for s in soup_for_extraction.find_all("script") if not is_year_script(s)
+                        str(s) for s in soup.find_all("script") if not is_year_script(s)
                     ]
                 else:
                     scripts_to_move = []
 
                 scripts_html = "\n".join(scripts_to_move)
 
-                for s in soup_for_extraction.find_all("script"):
+                for s in soup.find_all("script"):
                     if not is_year_script(s):
                         s.decompose()
 
                 # Detect content container
-                content_div = soup_for_extraction.find(attrs={"data-content": True})
+                content_div = soup.find(attrs={"data-content": True})
                 if content_div:
                     content_section = content_div.decode_contents().strip()
                     template_name = "vertical.html"
-                elif soup_for_extraction.body:
-                    content_section = soup_for_extraction.body.decode_contents().strip()
+                elif soup.body:
+                    content_section = soup.body.decode_contents().strip()
                     template_name = "base.html"
                 else:
-                    content_section = soup_for_extraction.decode()
+                    content_section = soup.decode()
                     template_name = "base.html"
 
+                html_attr_section = self._extract_html_data_attributes(content)
+
                 django_template = f"""{{% extends 'layouts/{template_name}' %}}
+
+{html_attr_section}
 
 {{% block title %}}{escaped_title if escaped_title else ""}{{% endblock title %}}
 
@@ -165,12 +186,15 @@ class BaseFlaskConverter:
 {{% endblock scripts %}}"""
 
                 final_output = django_template.strip()
+                final_output = html.unescape(final_output)
+                final_output = replace_html_links(final_output, '')
+                final_output = self._replace_asset_links_with_static(final_output)
 
-            with open(file, "w", encoding="utf-8") as f:
-                f.write(final_output + "\n")
+                with open(file, "w", encoding="utf-8") as f:
+                    f.write(final_output + "\n")
 
-            # Log.converted(str(file))
-            count += 1
+                # Log.converted(str(file))
+                count += 1
 
         Log.info(f"{count} files converted in {self.project_pages_path}")
 
@@ -274,20 +298,12 @@ class BaseFlaskConverter:
             return {}
 
     def _replace_asset_links_with_static(self, html: str):
-        """
-        Convert asset paths inside src=, href= to:
-            {{ config.ASSETS_ROOT }}/<path>
-        Convert inline CSS url(...) paths to:
-            /static/<path>
-        """
-
         asset_extensions = [
             'js', 'css', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico',
             'webp', 'woff', 'woff2', 'ttf', 'eot', 'mp4', 'webm'
         ]
         extensions_pattern = '|'.join(asset_extensions)
 
-        # IMG, SCRIPT, LINK TAGS → USE {{ config.ASSETS_ROOT }}
         attr_pattern = re.compile(
             r'\b(href|src)\s*=\s*["\']'
             r'(?!{{|#|https?://|//|mailto:|tel:)'
@@ -301,54 +317,69 @@ class BaseFlaskConverter:
             attr = match.group(1)
             path = match.group("path")
             trailing = match.group("trailing")
-
-            # Normalize: remove "./", "../", custom folders, and "assets/"
-            normalized = re.sub(r'^(?:\.{0,2}/)*(?:.*?/)?assets/', '', path).lstrip('/')
-
-            return f'{attr}="{{{{ config.ASSETS_ROOT }}}}/{normalized}{trailing}"'
+            normalized = re.sub(r'^.*?assets/', '', path).lstrip('/')
+            return f'{attr}="{{{{ url_for(\'static\', path=\'{normalized}\') }}}}{trailing}"'
 
         html = attr_pattern.sub(attr_replacer, html)
 
-        # INLINE CSS url(...) → USE /static
         css_pattern = re.compile(
-            r'url\(\s*[\'"]?(?:\.{0,2}/)?(?:.*?/)?assets/(?P<path>[^)\'"]+)[\'"]?\s*\)',
+            r'url\(\s*["\']?(?:\.{0,2}/)*(?:.*?/)*assets/(?P<inner_path>[^"\'\)]+)["\']?\s*\)',
             flags=re.IGNORECASE
         )
 
         def css_replacer(match: re.Match) -> str:
-            path = match.group("path").lstrip('/')
-            return f"url('/static/{path}')"
+            path = match.group("inner_path").strip().lstrip('/')
+            return f"url({{{{ url_for('static', path='{path}') }}}})"
 
         html = css_pattern.sub(css_replacer, html)
 
         return html
 
+    def _extract_html_data_attributes(self, html_content: str):
+        soup = BeautifulSoup(html_content, "html.parser")
+        html_tag = soup.find("html")
+        if not html_tag:
+            return ""
 
-class FlaskGulpConverter(BaseFlaskConverter):
+        # Filter for 'class' or keys starting with 'data-'
+        extracted_attrs = []
+        for k, v in html_tag.attrs.items():
+            if k == "class" or k.startswith("data-"):
+                # BS4 returns classes as a list, join them; otherwise use string value
+                val = " ".join(v) if isinstance(v, list) else v
+                extracted_attrs.append(f'{k}="{val}"')
+
+        if not extracted_attrs:
+            return ""
+
+        attrs_str = " ".join(extracted_attrs)
+        return f"{{% block html_attribute %}}{attrs_str}{{% endblock html_attribute %}}"
+
+
+class FastApiGulpConverter(BaseFastApiConverter):
     def __init__(self, config: ProjectConfig):
         super().__init__(config)
 
     def create_project(self):
         Log.project_start(self.config.project_name)
-
         self.init_create_project()
 
         if self.config.asset_paths:
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
             replace_asset_paths(self.config.project_assets_path, '/static')
 
-        add_gulpfile(self.config)
-
-        update_package_json(self.config)
+        has_plugins_config(self.config)
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+
+        sync_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
-class FlaskConverter:
+class FastApiConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
         if self.config.frontend_pipeline == "gulp":
-            FlaskGulpConverter(self.config).create_project()
+            FastApiGulpConverter(self.config).create_project()

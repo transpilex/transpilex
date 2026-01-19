@@ -21,6 +21,7 @@ mvc
 blazor
 ror
 spring
+fastapi
 
 php-vite
 laravel-vite
@@ -35,6 +36,7 @@ mvc-vite
 blazor-vite
 ror-vite
 spring-vite
+fastapi-vite
 
 php-tw
 laravel-tw

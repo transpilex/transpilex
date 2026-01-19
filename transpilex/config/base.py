@@ -11,7 +11,8 @@ SUPPORTED_FRAMEWORKS = [
     "Flask",
     "Symfony",
     "Spring",
-    "Blazor"
+    "Blazor",
+    "FastAPI"
 ]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
@@ -40,7 +41,6 @@ GULP_DEV_DEPENDENCIES = {
     "gulp-postcss": "^10.0.0",
     "gulp-rename": "^2.0.0",
     "gulp-replace": "^1.1.4",
-    "gulp-rtlcss": "^2.0.0",
     "gulp-sass": "^5.0.0",
     "gulp-uglify-es": "^3.0.0",
     "node-sass-tilde-importer": "^1.0.2",
@@ -131,6 +131,7 @@ FOLDERS = {
     "landing",
     "invoices",
     "contacts",
+    "widgets"
 }
 
 # No further nesting will take place inside these folders
@@ -159,6 +160,7 @@ NO_NESTING_FOLDERS = {
     "map",
     "maps",
     "landing",
+    "widgets"
 }
 
 # PHP
@@ -248,12 +250,7 @@ ROR_TAILWIND_PLUGINS = (
 )
 
 # CakePHP
-CAKEPHP_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/cakephp-boilerplate.git",
-    ".",
-]
+CAKEPHP_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-cakephp.git"
 CAKEPHP_EXTENSION = ".php"
 CAKEPHP_ASSETS_PATH = "webroot"
 CAKEPHP_PARTIALS_PATH = "templates/element"
@@ -261,12 +258,7 @@ CAKEPHP_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CAKEPHP_ASSETS_PRESERVE = ["index.php", ".htaccess"]
 
 # Codeigniter
-CODEIGNITER_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/codeigniter-boilerplate.git",
-    ".",
-]
+CODEIGNITER_COOKIECUTTER_REPO  = "https://github.com/transpilex/cookiecutter-codeigniter.git"
 CODEIGNITER_EXTENSION = ".php"
 CODEIGNITER_ASSETS_PATH = "public"
 CODEIGNITER_PARTIALS_PATH = "app/Views"
@@ -309,12 +301,7 @@ FLASK_PARTIALS_PATH = "apps/templates/partials"
 FLASK_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 
 # Symfony
-SYMFONY_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/symfony-boilerplate.git",
-    ".",
-]
+SYMFONY_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-symfony.git"
 SYMFONY_EXTENSION = ".html.twig"
 SYMFONY_ASSETS_PATH = "public"
 SYMFONY_PARTIALS_PATH = "templates/partials"
@@ -333,6 +320,13 @@ BLAZOR_EXTENSION = '.razor'
 BLAZOR_ASSETS_PATH = "wwwroot"
 BLAZOR_PARTIALS_PATH = "Components/Layout/Partials"
 BLAZOR_VARIABLE_REPLACEMENT = r"@\1"
+
+# Fast API
+FASTAPI_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-fastapi.git"
+FASTAPI_EXTENSION = ".html"
+FASTAPI_ASSETS_PATH = "apps/static"
+FASTAPI_PARTIALS_PATH = "apps/templates/partials"
+FASTAPI_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 
 RESERVE_KEYWORDS = {
     "abstract", "continue", "for", "new", "switch",

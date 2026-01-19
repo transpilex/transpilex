@@ -6,7 +6,7 @@ from typing import Optional
 
 from transpilex.config.base import PHP_VITE_CREATION_COMMAND
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_assets, copy_public_only_assets
+from transpilex.utils.assets import copy_assets, copy_public_only_assets, replace_asset_paths
 from transpilex.utils.extract_fragments import extract_fragments
 from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, move_files, copy_items
 from transpilex.utils.git import remove_git_folders

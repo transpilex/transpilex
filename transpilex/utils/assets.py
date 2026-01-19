@@ -172,25 +172,13 @@ def clean_relative_asset_paths(content: str):
 
 
 def replace_asset_paths(
-        folders: Union[Path, list[Union[str, Path]]],
-        new_base: str,
-        extensions: list[str] | None = None,
+    folders: Union[Path, list[Union[str, Path]]],
+    new_base: str | None = None,
+    extensions: list[str] | None = None,
 ):
-    """
-    Recursively scans all files in the given folder(s) for asset path patterns like
-    ./assets/... , ../assets/... , /assets/... , or assets/... and replaces them with new_base.
-
-    Args:
-        folders (Path | list[str | Path]): Folder(s) to scan.
-        new_base (str): Replacement base path (e.g. '~/assets/' or '/static/assets/').
-        extensions (list[str], optional): File extensions to include (default: js, css, scss, html, cshtml).
-    """
-
-    # Default extensions if none provided
     if extensions is None:
         extensions = [".js", ".css", ".scss", ".ts", ".html", ".cshtml"]
 
-    # Normalize folders into list of Path objects
     if isinstance(folders, Path):
         folders = [folders]
     elif isinstance(folders, list):
@@ -198,15 +186,33 @@ def replace_asset_paths(
     else:
         raise TypeError("folders must be a Path or list[str | Path]")
 
-    # Regex pattern: match ./assets/, ../assets/, /assets/, or assets/
-    asset_pattern = re.compile(
-        r'(?<![A-Za-z0-9_])'  # not preceded by identifier chars
-        r'(?:\.{0,2}/)*'  # optional ./ or ../ (any level)
-        r'assets/',  # must contain 'assets/'
+    base = f"/{new_base.strip('/')}" if new_base else ""
+
+    # images
+    images_pattern = re.compile(
+        r'(?<![A-Za-z0-9_])'
+        r'(?:'
+            r'(?:\.{1,2}/|/)?assets/'
+            r'|'
+            r'(?:\.{1,2}/)'
+        r')'
+        r'images'
+        r'(?=[/\.]|$)',
+        re.IGNORECASE
     )
 
-    # Normalize new base path to have exactly one trailing slash
-    new_base = new_base.rstrip("/") + "/"
+    images_replacement = f"{base}/images"
+
+    # data
+    data_pattern = re.compile(
+        r'(?<![A-Za-z0-9_])'
+        r'(?:\.{1,2}/|/)?'
+        r'assets/data'
+        r'(?=[/\.]|$)',
+        re.IGNORECASE
+    )
+
+    data_replacement = f"{base}/data"
 
     for folder in folders:
         if not folder.exists():
@@ -222,8 +228,9 @@ def replace_asset_paths(
             except UnicodeDecodeError:
                 continue
 
-            # Perform replacement
-            new_content = re.sub(asset_pattern, new_base, content)
+            new_content = content
+            new_content = images_pattern.sub(images_replacement, new_content)
+            new_content = data_pattern.sub(data_replacement, new_content)
 
             if new_content != content:
                 file.write_text(new_content, encoding="utf-8")

@@ -25,7 +25,7 @@ def add_gulpfile(config: ProjectConfig):
     tailwind = config.ui_library == "tailwind"
 
     imports = "const tailwindcss = require('@tailwindcss/postcss');" if tailwind else \
-        "const gulpSass = require('gulp-sass');\nconst dartSass = require('sass');\nconst tildeImporter = require('node-sass-tilde-importer');\nconst rtlcss = require('gulp-rtlcss');"
+        "const gulpSass = require('gulp-sass');\nconst dartSass = require('sass');\nconst tildeImporter = require('node-sass-tilde-importer');"
 
     plugins_import = 'const pluginFile = require("./plugins.config"); // Import the plugins list' if plugins_config else f"""
 const pluginFile = {{
@@ -77,7 +77,7 @@ const plugins = function () {{
         if (img) {{
             src(img)
                 .on('error', handleError('img'))
-                .pipe(dest(`${{out}}${{name}}/img/`));
+                .pipe(dest(`${{out}}${{name}}/images/`));
         }}
 
         if (media) {{
@@ -161,10 +161,10 @@ const minifyCss = [
 const styles = function () {{
     const out = paths.baseDistAssets + "/css/";
 
-    return src(paths.baseSrcAssets + "/css/style.css")
+    return src(paths.baseSrcAssets + "/css/app.css")
         .pipe(plumber()) // Checks for errors
         .pipe(postcss(processCss))
-        .pipe(dest(out))
+        // .pipe(dest(out))
         .pipe(rename({{suffix: '.min'}}))
         .pipe(postcss(minifyCss)) // Minifies the result
         .pipe(dest(out));
@@ -220,25 +220,6 @@ const styles = function () {{
         .pipe(dest(out));
 }};
 
-const rtl = function () {{
-    const out = paths.baseDistAssets + "/css/";
-
-    return src(paths.baseSrcAssets + "/scss/**/*.scss")
-        .pipe(
-            sass({{
-                importer: tildeImporter,
-                includePaths: [paths.baseSrcAssets + "/scss"],
-            }}).on('error', sass.logError),
-        )
-        .pipe(plumber()) // Checks for errors
-        .pipe(postcss(processCss))
-        .pipe(dest(out))
-        .pipe(rtlcss())
-        .pipe(rename({{suffix: "-rtl.min"}}))
-        .pipe(postcss(minifyCss)) // Minifies the result
-        .pipe(dest(out));
-}};
-
 {plugins_fn}
 
 const watchFiles = function () {{
@@ -256,19 +237,6 @@ exports.default = series(
 exports.build = series(
     {plugins_task}
     parallel(styles)
-);
-
-// RTL Tasks
-exports.rtl = series(
-    {plugins_task}
-    parallel(rtl),
-    parallel(watchFiles)
-);
-
-// RTL Build Tasks
-exports.rtlBuild = series(
-    {plugins_task}
-    parallel(rtl),
 );
 """
 
