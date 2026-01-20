@@ -266,6 +266,7 @@ CODEIGNITER_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CODEIGNITER_ASSETS_PRESERVE = ["index.php", ".htaccess", "manifest.json", "robots.txt"]
 
 # Node
+NODE_COOKIECUTTER_REPO  = "https://github.com/transpilex/cookiecutter-node.git"
 NODE_EXTENSION = ".ejs"
 NODE_ASSETS_PATH = "public"
 NODE_PARTIALS_PATH = "views"

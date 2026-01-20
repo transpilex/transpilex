@@ -12,7 +12,7 @@ from transpilex.utils.assets import clean_relative_asset_paths, copy_public_only
     replace_asset_paths
 from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import move_files, copy_items, file_exists
-from transpilex.utils.gulpfile import add_gulpfile
+from transpilex.utils.gulpfile import add_gulpfile, has_plugins_config
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_variables import replace_variables
@@ -93,7 +93,7 @@ class BaseMVCConverter:
 
             html_attr_line = self._extract_data_attributes(original_content)
             if html_attr_line:
-                viewbag_blocks.append(html_attr_line)
+                viewbag_blocks.extend(html_attr_line)
 
             original_content = original_content.replace("&#64;", "__AT__")
 
@@ -606,8 +606,8 @@ namespace {self.project_name}.Controllers
 
     def _extract_data_attributes(self, html_content: str):
         """
-        Extract all data-* attributes (e.g. data-theme, data-layout-width) from <html> or <body>
-        and return them as a ViewBag assignment line.
+        Extract all data-* attributes and class from <html>
+        and return ViewBag assignment lines.
         """
 
         try:
@@ -615,25 +615,32 @@ namespace {self.project_name}.Controllers
         except Exception:
             return []
 
-        # Collect data attributes from <html> and <body>
-        data_attrs = {}
-
         tag = soup.find("html")
-        if tag:
-            for attr, val in tag.attrs.items():
-                if attr.startswith("data-"):
-                    # Handle boolean or None-style attrs
-                    value_str = val if val not in [True, None] else "true"
-                    data_attrs[attr] = str(value_str).strip()
-
-        if not data_attrs:
+        if not tag:
             return []
 
-        # Join into HTML attribute syntax
-        joined_attrs = " ".join(f"{k}={v}" for k, v in data_attrs.items())
-        viewbag_line = f'    ViewBag.HTMLAttributes = "{joined_attrs}";'
+        viewbag_lines = []
 
-        return viewbag_line
+        data_attrs = {}
+        for attr, val in tag.attrs.items():
+            if attr.startswith("data-"):
+                value_str = val if val not in [True, None] else "true"
+                data_attrs[attr] = str(value_str).strip()
+
+        if data_attrs:
+            joined_attrs = " ".join(f"{k}={v}" for k, v in data_attrs.items())
+            viewbag_lines.append(
+                f'    ViewBag.HTMLAttributes = "{joined_attrs}";'
+            )
+
+        html_class = tag.get("class")
+        if html_class:
+            class_str = " ".join(html_class) if isinstance(html_class, list) else str(html_class)
+            viewbag_lines.append(
+                f'    ViewBag.HTMLClass = "{class_str.strip()}";'
+            )
+
+        return viewbag_lines
 
     def _convert_script_src_for_vite(self, html_content: str):
         try:
@@ -692,11 +699,11 @@ class MVCGulpConverter(BaseMVCConverter):
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
             replace_asset_paths(self.config.project_assets_path, '')
 
-        add_gulpfile(self.config)
-
-        update_package_json(self.config)
+        has_plugins_config(self.config)
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+
+        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
 
         Log.project_end(self.project_name, str(self.config.project_root_path))
 

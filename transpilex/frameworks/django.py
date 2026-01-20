@@ -1,8 +1,9 @@
 import re
 import ast
+import html
 from pathlib import Path
 from cookiecutter.main import cookiecutter
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
 
 from transpilex.config.base import DJANGO_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
@@ -131,13 +132,10 @@ class BaseDjangoConverter:
                 head_tag = soup_for_extraction.find("head")
                 links_html = "\n".join(str(tag) for tag in head_tag.find_all("link")) if head_tag else ""
 
-                def is_year_script(tag):
-                    return tag.name == "script" and not tag.has_attr("src") and "getFullYear" in (tag.string or "")
-
                 scripts_to_move = []
                 if self.config.frontend_pipeline == "gulp":
                     scripts_to_move = [
-                        str(s) for s in soup_for_extraction.find_all("script") if not is_year_script(s)
+                        str(s) for s in soup_for_extraction.find_all("script") if not self._is_year_script(s)
                     ]
                 else:
                     # Vite pipeline: extract {% vite_asset ... %} directives from HTML
@@ -152,7 +150,7 @@ class BaseDjangoConverter:
                 scripts_html = "\n".join(scripts_to_move)
 
                 for s in soup_for_extraction.find_all("script"):
-                    if not is_year_script(s):
+                    if not self._is_year_script(s):
                         s.decompose()
 
                 # Detect content container
@@ -167,9 +165,15 @@ class BaseDjangoConverter:
                     content_section = soup_for_extraction.decode()
                     template_name = "base.html"
 
+                html_attr_section = self._extract_html_data_attributes(content)
+
+                content_section = html.unescape(content_section)
+
                 # Build Django template structure
                 django_template = f"""{{% extends 'layouts/{template_name}' %}}
 {{% load static i18n {'django_vite' if self.config.frontend_pipeline == 'vite' else ''} %}}
+
+{html_attr_section}
 
 {{% block title %}}{escaped_title if escaped_title else ""}{{% endblock title %}}
 
@@ -296,18 +300,12 @@ class BaseDjangoConverter:
             return {}
 
     def _replace_asset_links_with_static(self, html: str):
-        """
-        Rewrites asset paths in src, href, and inline/background-image URLs
-        to use Django {% static %} or {% vite_asset %} tags.
-        If frontend_pipeline == "vite", replaces full <script> tags for JS assets with {% vite_asset %}.
-        """
         asset_extensions = [
             'js', 'css', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico',
             'webp', 'woff', 'woff2', 'ttf', 'eot', 'mp4', 'webm'
         ]
         extensions_pattern = '|'.join(asset_extensions)
 
-        # Handle full <script> tags separately when using Vite
         if getattr(self.config, "frontend_pipeline", "") == "vite":
             vite_script_pattern = re.compile(
                 r'<script\b[^>]*\bsrc=["\']([^"\']+\.js)["\'][^>]*>\s*</script>',
@@ -321,12 +319,11 @@ class BaseDjangoConverter:
 
             html = vite_script_pattern.sub(vite_script_replacer, html)
 
-        # Standard src/href replacement for all other assets
         attr_pattern = re.compile(
             r'\b(href|src)\s*=\s*["\']'
-            r'(?!{{|#|https?://|//|mailto:|tel:)'  # exclude external URLs
-            r'([^"\'#]+\.(?:' + extensions_pattern + r'))'  # asset path
-                                                     r'([^"\']*)'  # query/fragment
+            r'(?!{{|#|https?://|//|mailto:|tel:)'
+            r'([^"\'#]+\.(?:' + extensions_pattern + r'))'
+                                                     r'([^"\']*)'
                                                      r'["\']',
             re.IGNORECASE,
         )
@@ -338,25 +335,22 @@ class BaseDjangoConverter:
             normalized_path = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
             ext = Path(normalized_path).suffix.lower().lstrip('.')
 
-            # For vite, we already handled <script> tags above, so skip pure JS files here
             if ext == 'js' and getattr(self.config, "frontend_pipeline", "") == "vite":
-                return match.group(0)  # no change (already handled)
+                return match.group(0)
             else:
                 return f'{attr}="{{% static \'{normalized_path}\' %}}{query_fragment}"'
 
         html = attr_pattern.sub(attr_replacer, html)
 
-        # Inline CSS background URLs
         inline_style_pattern = re.compile(
-            r'url\(\s*[\'"]?(?!{{|#|https?://|//|mailto:|tel:)([^\'")]+)\s*[\'"]?\)',
+            r'url\(\s*(&quot;|\'|")?(?!{{|#|https?://|//|mailto:|tel:)(.*?)\1?\s*\)',
             re.IGNORECASE,
         )
 
         def style_replacer(match: re.Match) -> str:
-            path = match.group(1)
+            path = match.group(2).strip()
             normalized_path = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
-            ext = Path(normalized_path).suffix.lower().lstrip('.')
-            return f"url({{% static '{normalized_path}' %}})"
+            return f"url('{{% static \'{normalized_path}\' %}}')"
 
         html = inline_style_pattern.sub(style_replacer, html)
 
@@ -390,6 +384,33 @@ class BaseDjangoConverter:
             return f"{pre_path}{django_url_tag}{post_path}"
 
         return re.sub(pattern, replacer, html_content)
+
+    def _extract_html_data_attributes(self, html_content: str):
+        soup = BeautifulSoup(html_content, "html.parser")
+        html_tag = soup.find("html")
+        if not html_tag:
+            return ""
+
+        # Filter for 'class' or keys starting with 'data-'
+        extracted_attrs = []
+        for k, v in html_tag.attrs.items():
+            if k == "class" or k.startswith("data-"):
+                # BS4 returns classes as a list, join them; otherwise use string value
+                val = " ".join(v) if isinstance(v, list) else v
+                extracted_attrs.append(f'{k}="{val}"')
+
+        if not extracted_attrs:
+            return ""
+
+        attrs_str = " ".join(extracted_attrs)
+        return f"{{% block html_attribute %}}{attrs_str}{{% endblock html_attribute %}}"
+
+    def _is_year_script(self, tag):
+        if tag.name == "script" and not tag.has_attr("src"):
+            content = tag.string or ""
+            is_date_script = "new Date().toLocaleDateString" in content
+            return "getFullYear" in content or is_date_script
+        return False
 
 
 class DjangoGulpConverter(BaseDjangoConverter):
