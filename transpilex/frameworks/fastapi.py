@@ -136,13 +136,10 @@ class BaseFastApiConverter:
                 head_tag = soup.find("head")
                 links_html = "\n".join(str(tag) for tag in head_tag.find_all("link")) if head_tag else ""
 
-                def is_year_script(tag):
-                    return tag.name == "script" and not tag.has_attr("src") and "getFullYear" in (tag.string or "")
-
                 scripts_to_move = []
                 if self.config.frontend_pipeline == "gulp":
                     scripts_to_move = [
-                        str(s) for s in soup.find_all("script") if not is_year_script(s)
+                        str(s) for s in soup.find_all("script") if not self._is_year_script(s)
                     ]
                 else:
                     scripts_to_move = []
@@ -150,7 +147,7 @@ class BaseFastApiConverter:
                 scripts_html = "\n".join(scripts_to_move)
 
                 for s in soup.find_all("script"):
-                    if not is_year_script(s):
+                    if not self._is_year_script(s):
                         s.decompose()
 
                 # Detect content container
@@ -354,6 +351,13 @@ class BaseFastApiConverter:
 
         attrs_str = " ".join(extracted_attrs)
         return f"{{% block html_attribute %}}{attrs_str}{{% endblock html_attribute %}}"
+
+    def _is_year_script(self, tag):
+        if tag.name == "script" and not tag.has_attr("src"):
+            content = tag.string or ""
+            is_date_script = "new Date().toLocaleDateString" in content
+            return "getFullYear" in content or is_date_script
+        return False
 
 
 class FastApiGulpConverter(BaseFastApiConverter):

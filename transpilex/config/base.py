@@ -271,31 +271,9 @@ NODE_EXTENSION = ".ejs"
 NODE_ASSETS_PATH = "public"
 NODE_PARTIALS_PATH = "views"
 NODE_VARIABLE_REPLACEMENT = r"<%- \1 %>"
-NODE_DEPENDENCIES = {
-    "cookie-parser": "^1.4.7",
-    "ejs": "^3.1.10",
-    "express": "^5.1.0",
-    "express-ejs-layouts": "^2.5.1",
-    "express-fileupload": "^1.5.2",
-    "express-session": "^1.18.2",
-    "nodemon": "^3.1.11",
-    "npm-run-all": "^4.1.5",
-    "path": "^0.12.7",
-}
 
 # Flask
-FLASK_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/flask-boilerplate.git",
-    ".",
-]
-FLASK_PROJECT_CREATION_COMMAND_AUTH = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/flask-boilerplate-with-auth.git",
-    ".",
-]
+FLASK_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-flask.git"
 FLASK_EXTENSION = ".html"
 FLASK_ASSETS_PATH = "apps/static"
 FLASK_PARTIALS_PATH = "apps/templates/partials"
