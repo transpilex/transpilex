@@ -228,18 +228,7 @@ MVC_PARTIALS_PATH = "Views/Shared/Partials"
 MVC_VARIABLE_REPLACEMENT = r"@\1"
 
 # RoR
-ROR_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/ror-boilerplate.git",
-    ".",
-]
-ROR_VITE_PROJECT_CREATION_COMMAND = [
-    "git",
-    "clone",
-    "https://github.com/transpilex/ror-vite-boilerplate.git",
-    ".",
-]
+ROR_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-ror.git"
 ROR_EXTENSION = ".html.erb"
 ROR_ASSETS_PATH = "public"
 ROR_VITE_ASSETS_PATH = "frontend"

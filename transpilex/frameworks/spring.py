@@ -5,9 +5,8 @@ import html
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple
-
 from cookiecutter.main import cookiecutter
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
 
 from transpilex.config.base import SPRING_COOKIECUTTER_REPO, RESERVE_KEYWORDS
 from transpilex.config.project import ProjectConfig
@@ -362,18 +361,18 @@ class BaseSpringConverter:
 
     def _extract_html_data_attributes(self, html_content: str) -> str:
         """
-        Extracts data- attributes from the source <html> tag and returns them as a string.
+        Extracts data- attributes and class from the source <html> tag and returns them as a string.
         """
         soup = BeautifulSoup(html_content, "html.parser")
         html_tag = soup.find("html")
         if not html_tag:
             return ""
 
-        # Filter for data- attributes only
-        attrs = [f'{k}="{v}"' for k, v in html_tag.attrs.items() if k.startswith("data-")]
-
-        if not attrs:
-            return ""
+        attrs = []
+        for k, v in html_tag.attrs.items():
+            if k.startswith("data-") or k == "class":
+                value = " ".join(v) if isinstance(v, list) else v
+                attrs.append(f'{k}="{value}"')
 
         return " ".join(attrs)
 
@@ -610,7 +609,7 @@ class BaseSpringConverter:
         return sanitized
 
     def _create_controller_file(self, path: Path, controller_name: str, actions: List[Tuple[str, str]]):
-        class_name = controller_name[0].upper() + controller_name[1:]
+        class_name = apply_casing(controller_name, "pascal")
         request_mapping = controller_name.lower()
         methods = []
         for action_name, template_path in actions:
@@ -668,7 +667,8 @@ public class {class_name} {{
                             os.sep, '_')
                         actions.append((action_name, template_path))
             if actions:
-                controller_file_name = f"{controller_name.capitalize()}.java"
+                pascal_name = apply_casing(controller_name, "pascal")
+                controller_file_name = f"{pascal_name}.java"
                 controller_file_path = self.project_controllers_path / controller_file_name
                 self._create_controller_file(controller_file_path, controller_name, actions)
         Log.info("Controller generation completed")

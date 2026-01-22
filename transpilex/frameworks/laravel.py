@@ -480,20 +480,23 @@ export default defineConfig({{
         return pattern.sub(repl, content)
 
     def _extract_html_data_attributes(self, html_content: str):
-        """
-        Extracts all attributes from the <html> tag that start with 'data-'
-        and returns a Blade @section('html_attribute') block.
-        """
         soup = BeautifulSoup(html_content, "html.parser")
         html_tag = soup.find("html")
         if not html_tag:
             return ""
 
-        attrs = [f'{k}="{v}"' for k, v in html_tag.attrs.items() if k.startswith("data-")]
-        if not attrs:
+        # Filter for 'class' or keys starting with 'data-'
+        extracted_attrs = []
+        for k, v in html_tag.attrs.items():
+            if k == "class" or k.startswith("data-"):
+                # BS4 returns classes as a list, join them; otherwise use string value
+                val = " ".join(v) if isinstance(v, list) else v
+                extracted_attrs.append(f'{k}="{val}"')
+
+        if not extracted_attrs:
             return ""
 
-        attrs_str = " ".join(attrs)
+        attrs_str = " ".join(extracted_attrs)
         return f"@section('html_attribute')\n{attrs_str}\n@endsection"
 
     def _replace_asset_image_paths(self, content: str) -> str:

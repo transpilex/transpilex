@@ -1,19 +1,18 @@
 import re
 import json
 import html
-import subprocess
 from pathlib import Path
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
+from cookiecutter.main import cookiecutter
 
-from transpilex.config.base import ROR_VITE_PROJECT_CREATION_COMMAND, ROR_PROJECT_CREATION_COMMAND, ROR_TAILWIND_PLUGINS
+from transpilex.config.base import ROR_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, copy_public_only_assets
 from transpilex.utils.casing import apply_casing
-from transpilex.utils.file import move_files, rename_item, copy_items, remove_item
-from transpilex.utils.git import remove_git_folders
-from transpilex.utils.gulpfile import add_gulpfile
+from transpilex.utils.file import move_files, rename_item, copy_items, remove_item, file_exists
+from transpilex.utils.gulpfile import add_gulpfile, has_plugins_config
 from transpilex.utils.logs import Log
-from transpilex.utils.package_json import update_package_json
+from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
 from transpilex.utils.assets import clean_relative_asset_paths
@@ -27,10 +26,10 @@ class BaseRorConverter:
         self.project_public_path = Path(self.config.project_root_path / "public")
         self.project_controllers_path = Path(self.config.project_root_path / "app" / "controllers")
         self.project_routes_path = Path(self.config.project_root_path / "config" / "routes.rb")
-        self.project_config_deploy_path = Path(self.config.project_root_path / "config" / "deploy.yml")
+        # self.project_config_deploy_path = Path(self.config.project_root_path / "config" / "deploy.yml")
         self.project_tailwind_css_path = Path(self.config.project_root_path / "app" / "assets" / "tailwind")
-        self.project_gemfile_path = Path(self.config.project_root_path / "Gemfile")
-        self.project_procfile_path = Path(self.config.project_root_path / "Procfile.dev")
+        # self.project_gemfile_path = Path(self.config.project_root_path / "Gemfile")
+        # self.project_procfile_path = Path(self.config.project_root_path / "Procfile.dev")
         self.project_head_css_path = Path(
             self.config.project_root_path / "app/views/layouts/partials/_head_css.html.erb")
 
@@ -38,27 +37,25 @@ class BaseRorConverter:
 
     def init_create_project(self):
         try:
-            self.config.project_root_path.mkdir(parents=True, exist_ok=True)
+            has_plugins_file = False
 
-            subprocess.run(
-                ROR_VITE_PROJECT_CREATION_COMMAND if self.config.frontend_pipeline == 'vite' else ROR_PROJECT_CREATION_COMMAND,
-                cwd=self.config.project_root_path,
-                check=True,
-                capture_output=True, text=True)
+            if file_exists(self.config.src_path / "plugins.config.js"):
+                has_plugins_file = True
+
+            cookiecutter(
+                ROR_COOKIECUTTER_REPO,
+                output_dir=str(self.config.project_root_path.parent),
+                no_input=True,
+                extra_context={'name': self.config.project_name,
+                               'ui_library': self.config.ui_library.title(),
+                               'frontend_pipeline': self.config.frontend_pipeline.title(),
+                               'has_plugins_config': 'y' if has_plugins_file and self.config.frontend_pipeline == 'gulp' else 'n',
+                               'use_auth': 'y' if self.config.use_auth else 'n'
+                               },
+            )
 
             Log.success("RoR project created successfully")
-
-            remove_git_folders(self.config.project_root_path)
-
-            try:
-                content = self.project_config_deploy_path.read_text(encoding="utf-8")
-                content = content.replace("project_name", self.config.project_name)
-                self.project_config_deploy_path.write_text(content, encoding="utf-8")
-
-            except (UnicodeDecodeError, OSError):
-                Log.error(f"Error changing project_name in {self.project_config_deploy_path}")
-
-        except subprocess.CalledProcessError:
+        except:
             Log.error("RoR project creation failed")
             return
 
@@ -329,20 +326,23 @@ class BaseRorConverter:
         return pattern.sub(repl, content)
 
     def _extract_html_data_attributes(self, html_content: str):
-        """
-        Extracts all attributes from the <html> tag that start with 'data-'
-        and returns them formatted for ERB content_for.
-        """
         soup = BeautifulSoup(html_content, "html.parser")
         html_tag = soup.find("html")
         if not html_tag:
             return ""
 
-        attrs = [f'{k}="{v}"' for k, v in html_tag.attrs.items() if k.startswith("data-")]
-        if not attrs:
+        # Filter for 'class' or keys starting with 'data-'
+        extracted_attrs = []
+        for k, v in html_tag.attrs.items():
+            if k == "class" or k.startswith("data-"):
+                # BS4 returns classes as a list, join them; otherwise use string value
+                val = " ".join(v) if isinstance(v, list) else v
+                extracted_attrs.append(f'{k}="{val}"')
+
+        if not extracted_attrs:
             return ""
 
-        attrs_str = " ".join(attrs)
+        attrs_str = " ".join(extracted_attrs)
         return f"<% content_for :html_attribute do %>\n{attrs_str}\n<% end %>"
 
     def _replace_asset_image_paths(self, content: str):
@@ -648,11 +648,6 @@ end
         remove_item(Path(self.config.project_assets_path / "css"))
 
         try:
-            with open(self.project_gemfile_path, 'a') as file:
-                file.write(ROR_TAILWIND_PLUGINS)
-
-            with open(self.project_procfile_path, 'a') as file:
-                file.write("css: bin/rails tailwindcss:watch")
 
             with open(self.project_head_css_path, 'a') as file:
                 file.write('\n<%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>')
@@ -676,11 +671,11 @@ class RorGulpConverter(BaseRorConverter):
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
             replace_asset_paths(self.config.project_assets_path, '')
 
-        add_gulpfile(self.config)
-
-        update_package_json(self.config)
+        has_plugins_config(self.config)
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+
+        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 

@@ -60,7 +60,7 @@ class BaseDjangoConverter:
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
             copy_items(Path(self.config.src_path / "public"), self.config.project_assets_path, copy_mode="contents")
 
-        sync_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
