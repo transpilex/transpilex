@@ -71,7 +71,7 @@ class LaravelConverter:
                         preserve=LARAVEL_RESOURCES_PRESERVE)
             replace_asset_paths(self.config.project_assets_path, '/public')
 
-        update_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
+        update_package_json(self.config, ignore=["scripts"])
 
         self._update_vite_config()
 

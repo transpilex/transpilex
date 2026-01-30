@@ -192,9 +192,9 @@ def replace_asset_paths(
     images_pattern = re.compile(
         r'(?<![A-Za-z0-9_])'
         r'(?:'
-            r'(?:\.{1,2}/|/)?assets/'
-            r'|'
-            r'(?:\.{1,2}/)'
+        r'(?:\.\./)+'
+        r'|'
+        r'(?:\.{1,2}/|/)?assets/'
         r')'
         r'images'
         r'(?=[/\.]|$)',

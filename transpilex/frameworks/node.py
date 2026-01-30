@@ -64,7 +64,7 @@ class BaseNodeConverter:
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
-        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts"])
 
     def _convert(self):
         count = 0

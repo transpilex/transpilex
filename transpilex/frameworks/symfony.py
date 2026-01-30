@@ -116,6 +116,7 @@ class BaseSymfonyConverter:
                 out = clean_relative_asset_paths(out)
                 out = self._replace_includes_with_twig(out)
                 out = re.sub(r'(\{\{.*?\}\})=""', r'\1', out)
+                out = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', out)
 
                 file.write_text(out, encoding="utf-8")
                 # Log.converted(f"{file}")
@@ -182,6 +183,7 @@ class BaseSymfonyConverter:
 
             out = replace_html_links(twig_output, '')
             out = clean_relative_asset_paths(out)
+            out = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', out)
 
             file.write_text(out.strip() + "\n", encoding="utf-8")
 
@@ -293,30 +295,24 @@ class BaseSymfonyConverter:
         return content
 
     def _extract_html_data_attributes(self, html_content: str):
-        """
-        Extracts all data-* attributes from <html> tag and converts them into:
-        {% set html_attribute = 'data-x=y data-b=c' %}
-        """
         soup = BeautifulSoup(html_content, "html.parser")
         html_tag = soup.find("html")
         if not html_tag:
             return ""
 
-        attrs = []
-
+        # Filter for 'class' or keys starting with 'data-'
+        extracted_attrs = []
         for k, v in html_tag.attrs.items():
-            if k.startswith("data-"):
-                if v is None:
-                    attrs.append(k)
-                else:
-                    attrs.append(f'{k}={v}')
+            if k == "class" or k.startswith("data-"):
+                # BS4 returns classes as a list, join them; otherwise use string value
+                val = " ".join(v) if isinstance(v, list) else v
+                extracted_attrs.append(f'{k}="{val}"')
 
-        if not attrs:
+        if not extracted_attrs:
             return ""
 
-        attr_string = " ".join(attrs)
-
-        return f"{{% set html_attribute = '{attr_string}' %}}"
+        attrs_str = " ".join(extracted_attrs)
+        return f"{{% set html_attribute = '{attrs_str}' %}}"
 
 
 class SymfonyGulpConverter(BaseSymfonyConverter):
@@ -336,7 +332,7 @@ class SymfonyGulpConverter(BaseSymfonyConverter):
 
         copy_items(Path(self.config.src_path / "package-lock.json"),self.config.project_root_path)
 
-        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts"])
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 

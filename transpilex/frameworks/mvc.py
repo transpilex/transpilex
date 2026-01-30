@@ -703,7 +703,7 @@ class MVCGulpConverter(BaseMVCConverter):
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
-        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts"])
 
         Log.project_end(self.project_name, str(self.config.project_root_path))
 

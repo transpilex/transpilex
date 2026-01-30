@@ -60,7 +60,7 @@ class BaseDjangoConverter:
             copy_assets(self.config.asset_paths, self.config.project_assets_path)
             copy_items(Path(self.config.src_path / "public"), self.config.project_assets_path, copy_mode="contents")
 
-        sync_package_json(self.config, ignore=["scripts", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts"])
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
@@ -306,6 +306,7 @@ class BaseDjangoConverter:
         ]
         extensions_pattern = '|'.join(asset_extensions)
 
+        # vite script handling
         if getattr(self.config, "frontend_pipeline", "") == "vite":
             vite_script_pattern = re.compile(
                 r'<script\b[^>]*\bsrc=["\']([^"\']+\.js)["\'][^>]*>\s*</script>',
@@ -314,11 +315,12 @@ class BaseDjangoConverter:
 
             def vite_script_replacer(match: re.Match) -> str:
                 path = match.group(1)
-                normalized_path = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
-                return f"{{% vite_asset '{self.config.project_name}/static/{normalized_path}' %}}"
+                normalized = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
+                return f"{{% vite_asset '{self.config.project_name}/static/{normalized}' %}}"
 
             html = vite_script_pattern.sub(vite_script_replacer, html)
 
+        # href / src attributes
         attr_pattern = re.compile(
             r'\b(href|src)\s*=\s*["\']'
             r'(?!{{|#|https?://|//|mailto:|tel:)'
@@ -332,27 +334,41 @@ class BaseDjangoConverter:
             attr = match.group(1)
             path = match.group(2)
             query_fragment = match.group(3)
-            normalized_path = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
-            ext = Path(normalized_path).suffix.lower().lstrip('.')
+            normalized = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
+            ext = Path(normalized).suffix.lower().lstrip('.')
 
             if ext == 'js' and getattr(self.config, "frontend_pipeline", "") == "vite":
                 return match.group(0)
-            else:
-                return f'{attr}="{{% static \'{normalized_path}\' %}}{query_fragment}"'
+
+            return f'{attr}="{{% static \'{normalized}\' %}}{query_fragment}"'
 
         html = attr_pattern.sub(attr_replacer, html)
 
-        inline_style_pattern = re.compile(
-            r'url\(\s*(&quot;|\'|")?(?!{{|#|https?://|//|mailto:|tel:)(.*?)\1?\s*\)',
+        # Tailwind bg-[url(...)] → /static/...
+        tailwind_bg_pattern = re.compile(
+            r'bg-\[\s*url\(\s*([\'"]?)(?!https?://|//)(.*?)\1\s*\)\s*\]',
             re.IGNORECASE,
         )
 
-        def style_replacer(match: re.Match) -> str:
+        def tailwind_bg_replacer(match: re.Match) -> str:
             path = match.group(2).strip()
-            normalized_path = re.sub(r'^(?:.*\/)?assets\/', '', path).lstrip('/')
-            return f"url('{{% static \'{normalized_path}\' %}}')"
+            normalized = re.sub(r'^(?:.*\/)?images\/', 'images/', path).lstrip('/')
+            return f"bg-[url(/static/{normalized})]"
 
-        html = inline_style_pattern.sub(style_replacer, html)
+        html = tailwind_bg_pattern.sub(tailwind_bg_replacer, html)
+
+        # CSS url(...), exclude bg-[ ... ]
+        css_url_pattern = re.compile(
+            r'(?<!bg-\[)url\(\s*([\'"]?)(?!{{|#|https?://|//)(.*?)\1\s*\)',
+            re.IGNORECASE,
+        )
+
+        def css_url_replacer(match: re.Match) -> str:
+            path = match.group(2).strip()
+            normalized = re.sub(r'^(?:.*\/)?images\/', 'images/', path).lstrip('/')
+            return f"url('{{% static '{normalized}' %}}')"
+
+        html = css_url_pattern.sub(css_url_replacer, html)
 
         return html
 

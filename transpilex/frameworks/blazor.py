@@ -75,7 +75,7 @@ class BlazorConverter:
 
         add_gulpfile(self.config)
 
-        sync_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
+        sync_package_json(self.config, ignore=["scripts"])
 
         copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
 
