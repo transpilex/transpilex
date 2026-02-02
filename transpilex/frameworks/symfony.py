@@ -1,6 +1,7 @@
 import re
 import json
 import html
+from html import unescape
 from pathlib import Path
 from bs4 import BeautifulSoup
 from cookiecutter.main import cookiecutter
@@ -300,13 +301,20 @@ class BaseSymfonyConverter:
         if not html_tag:
             return ""
 
-        # Filter for 'class' or keys starting with 'data-'
         extracted_attrs = []
         for k, v in html_tag.attrs.items():
             if k == "class" or k.startswith("data-"):
-                # BS4 returns classes as a list, join them; otherwise use string value
                 val = " ".join(v) if isinstance(v, list) else v
-                extracted_attrs.append(f'{k}="{val}"')
+
+                val = unescape(val)
+
+                if (
+                        (val.startswith('"') and val.endswith('"')) or
+                        (val.startswith("'") and val.endswith("'"))
+                ):
+                    val = val[1:-1]
+
+                extracted_attrs.append(f'{k}={val}')
 
         if not extracted_attrs:
             return ""

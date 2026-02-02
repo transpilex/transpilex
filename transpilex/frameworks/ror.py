@@ -26,10 +26,7 @@ class BaseRorConverter:
         self.project_public_path = Path(self.config.project_root_path / "public")
         self.project_controllers_path = Path(self.config.project_root_path / "app" / "controllers")
         self.project_routes_path = Path(self.config.project_root_path / "config" / "routes.rb")
-        # self.project_config_deploy_path = Path(self.config.project_root_path / "config" / "deploy.yml")
         self.project_tailwind_css_path = Path(self.config.project_root_path / "app" / "assets" / "tailwind")
-        # self.project_gemfile_path = Path(self.config.project_root_path / "Gemfile")
-        # self.project_procfile_path = Path(self.config.project_root_path / "Procfile.dev")
         self.project_head_css_path = Path(
             self.config.project_root_path / "app/views/layouts/partials/_head_css.html.erb")
 
@@ -128,6 +125,7 @@ class BaseRorConverter:
 
                 out = self._replace_all_includes_with_erb(out).strip()
                 out = self._replace_anchor_links_with_routes(out, self.route_map)
+                out = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', out)
 
                 file.write_text(out, encoding="utf-8")
 
@@ -186,6 +184,7 @@ class BaseRorConverter:
                 final = self._replace_asset_image_paths(final)
 
             final = self._replace_anchor_links_with_routes(final, self.route_map)
+            final = re.sub(r'href=["\']/(#|javascript:)', r'href="\1', final)
             file.write_text(final.strip() + "\n", encoding="utf-8")
 
             # Log.converted(f"{file}")
@@ -282,7 +281,10 @@ class BaseRorConverter:
         if not route_map:
             return content
 
-        pattern = re.compile(r'href=["\'](?P<href>[^"\']+\.html)["\']', re.IGNORECASE)
+        pattern = re.compile(
+            r'href=["\'](?!https?://)(?P<href>[^"\']+\.html)["\']',
+            re.IGNORECASE
+        )
 
         def repl(match):
             href_val = match.group("href").strip()
@@ -321,6 +323,8 @@ class BaseRorConverter:
             if controller == "layouts":
                 controller = "layouts_eg"
 
+            controller = apply_casing(controller, 'snake')
+
             return f'href="<%= url_for :controller => \'{controller}\', :action => \'{action}\' %>"'
 
         return pattern.sub(repl, content)
@@ -343,7 +347,7 @@ class BaseRorConverter:
             return ""
 
         attrs_str = " ".join(extracted_attrs)
-        return f"<% content_for :html_attribute do %>\n{attrs_str}\n<% end %>"
+        return f"<% content_for :html_attributes do %>\n{attrs_str}\n<% end %>"
 
     def _replace_asset_image_paths(self, content: str):
         """
@@ -648,7 +652,6 @@ end
         remove_item(Path(self.config.project_assets_path / "css"))
 
         try:
-
             with open(self.project_head_css_path, 'a') as file:
                 file.write('\n<%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>')
 

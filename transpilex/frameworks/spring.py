@@ -297,6 +297,13 @@ class BaseSpringConverter:
           - <img>, <link>, <a>, <script> if not already handled
         """
 
+        content = re.sub(
+            r'bg-\[url\((["\']?)((?:\./|\.\./)*/?(?:assets/)?images/([^"\')]+))\1\)\]',
+            r'bg-[url(/images/\3)]',
+            content,
+            flags=re.IGNORECASE
+        )
+
         soup = BeautifulSoup(content, "html.parser")
 
         def normalize_asset(val: str) -> str | None:
