@@ -12,7 +12,8 @@ SUPPORTED_FRAMEWORKS = [
     "Symfony",
     "Spring",
     "Blazor",
-    "FastAPI"
+    "FastAPI",
+    "Yii"
 ]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
@@ -295,6 +296,15 @@ FASTAPI_EXTENSION = ".html"
 FASTAPI_ASSETS_PATH = "apps/static"
 FASTAPI_PARTIALS_PATH = "apps/templates/partials"
 FASTAPI_VARIABLE_REPLACEMENT = r"{{ \1 }}"
+
+# Fast API
+YII_COOKIECUTTER_REPO  = "https://github.com/transpilex/cookiecutter-yii.git"
+YII_EXTENSION = ".php"
+YII_ASSETS_PATH = "public"
+YII_PARTIALS_PATH = "src/Web/Pages/templates/partials"
+YII_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
+YII_ASSETS_PRESERVE = ["index.php", "robots.txt"]
+
 
 RESERVE_KEYWORDS = {
     "abstract", "continue", "for", "new", "switch",
