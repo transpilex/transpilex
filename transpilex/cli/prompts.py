@@ -19,7 +19,8 @@ from transpilex.config.base import (
     FLASK_EXTENSION, SYMFONY_ASSETS_PATH, SYMFONY_PARTIALS_PATH, SYMFONY_VARIABLE_REPLACEMENT,
     SYMFONY_EXTENSION, SPRING_ASSETS_PATH, SPRING_PARTIALS_PATH, SPRING_EXTENSION, BLAZOR_ASSETS_PATH,
     BLAZOR_PARTIALS_PATH, BLAZOR_VARIABLE_REPLACEMENT, BLAZOR_EXTENSION, FASTAPI_ASSETS_PATH, FASTAPI_PARTIALS_PATH,
-    FASTAPI_VARIABLE_REPLACEMENT, FASTAPI_EXTENSION
+    FASTAPI_VARIABLE_REPLACEMENT, FASTAPI_EXTENSION, YII_ASSETS_PATH, YII_PARTIALS_PATH, YII_VARIABLE_REPLACEMENT,
+    YII_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -266,6 +267,12 @@ def ask_project_config():
         project_partials_path = FASTAPI_PARTIALS_PATH
         variable_replacement = FASTAPI_VARIABLE_REPLACEMENT
         file_extension = FASTAPI_EXTENSION
+
+    elif framework == "yii":
+        project_assets_path = YII_ASSETS_PATH
+        project_partials_path = YII_PARTIALS_PATH
+        variable_replacement = YII_VARIABLE_REPLACEMENT
+        file_extension = YII_EXTENSION
 
     else:
         project_assets_path = None
@@ -519,6 +526,12 @@ def process_cli_config(cli_args):
         project_partials_path = FASTAPI_PARTIALS_PATH
         variable_replacement = FASTAPI_VARIABLE_REPLACEMENT
         file_extension = FASTAPI_EXTENSION
+
+    elif framework == "yii":
+        project_assets_path = YII_ASSETS_PATH
+        project_partials_path = YII_PARTIALS_PATH
+        variable_replacement = YII_VARIABLE_REPLACEMENT
+        file_extension = YII_EXTENSION
 
     else:
         project_assets_path = None

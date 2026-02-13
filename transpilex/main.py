@@ -18,6 +18,7 @@ from transpilex.frameworks.php import PHPConverter
 from transpilex.frameworks.ror import RorConverter
 from transpilex.frameworks.spring import SpringConverter
 from transpilex.frameworks.symfony import SymfonyConverter
+from transpilex.frameworks.yii import YiiConverter
 from transpilex.utils.logs import Log
 from transpilex.utils.pattern import load_compiled_patterns, load_variable_patterns
 
@@ -134,6 +135,8 @@ def main():
             BlazorConverter(config)
         elif project_config["framework"] == "fastapi":
             FastApiConverter(config)
+        elif project_config["framework"] == "yii":
+            YiiConverter(config)
         return 0
     except Exception as e:
         Log.error(f"Transpilation failed: {e}")
