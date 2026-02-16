@@ -11,6 +11,7 @@ from transpilex.utils.assets import copy_assets, replace_asset_paths
 from transpilex.utils.file import file_exists, find_files_with_extension, copy_and_change_extension, move_files, \
     copy_items
 from transpilex.utils.gulpfile import has_plugins_config
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import sync_package_json
 from transpilex.utils.replace_variables import replace_variables
@@ -62,7 +63,7 @@ class BaseDjangoConverter:
 
         sync_package_json(self.config, ignore=["scripts"])
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
     def _convert(self):
         """

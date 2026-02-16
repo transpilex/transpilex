@@ -9,8 +9,9 @@ from transpilex.config.base import BLAZOR_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, clean_relative_asset_paths
 from transpilex.utils.casing import apply_casing
-from transpilex.utils.file import file_exists, copy_items, move_files
+from transpilex.utils.file import file_exists, move_files
 from transpilex.utils.gulpfile import add_gulpfile
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 
 from transpilex.utils.package_json import sync_package_json
@@ -77,7 +78,7 @@ class BlazorConverter:
 
         sync_package_json(self.config, ignore=["scripts"])
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         Log.project_end(self.project_name, str(self.config.project_root_path))
 

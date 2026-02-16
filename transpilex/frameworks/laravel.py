@@ -11,6 +11,7 @@ from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, copy_public_only_assets, replace_asset_paths
 from transpilex.utils.file import move_files, copy_items
 from transpilex.utils.git import remove_git_folders
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_variables import replace_variables
@@ -76,6 +77,8 @@ class LaravelConverter:
         self._update_vite_config()
 
         self._generate_routes(self.project_views_path, self.config.project_root_path / "routes" / "web.php")
+
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 

@@ -11,9 +11,10 @@ from transpilex.utils.assets import clean_relative_asset_paths, copy_public_only
     replace_asset_paths
 from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import move_files, copy_items, file_exists
-from transpilex.utils.gulpfile import add_gulpfile, has_plugins_config
+from transpilex.utils.gulpfile import has_plugins_config
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
-from transpilex.utils.package_json import update_package_json, sync_package_json
+from transpilex.utils.package_json import sync_package_json
 from transpilex.utils.replace_variables import replace_variables
 from transpilex.utils.restructure import restructure_and_copy_files
 
@@ -621,7 +622,7 @@ class CoreGulpConverter(BaseCoreConverter):
 
         has_plugins_config(self.config)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         sync_package_json(self.config, ignore=["scripts"])
 
@@ -641,7 +642,7 @@ class CoreViteConverter(BaseCoreConverter):
             public_only = copy_public_only_assets(self.config.asset_paths, self.project_public_path)
             copy_assets(self.config.asset_paths, self.config.project_assets_path, exclude=public_only)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         sync_package_json(self.config, ignore=["scripts", "type", "devDependencies"])
 

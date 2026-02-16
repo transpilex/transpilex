@@ -6,11 +6,12 @@ from typing import Optional
 
 from transpilex.config.base import PHP_VITE_CREATION_COMMAND
 from transpilex.config.project import ProjectConfig
-from transpilex.utils.assets import copy_assets, copy_public_only_assets, replace_asset_paths
+from transpilex.utils.assets import copy_assets, copy_public_only_assets
 from transpilex.utils.extract_fragments import extract_fragments
 from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, move_files, copy_items
 from transpilex.utils.git import remove_git_folders
 from transpilex.utils.gulpfile import add_gulpfile
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json
 from transpilex.utils.replace_html_links import replace_html_links
@@ -164,7 +165,7 @@ class PHPGulpConverter(BasePHPConverter):
 
         update_package_json(self.config)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
@@ -218,7 +219,7 @@ class PHPViteConverter(BasePHPConverter):
                                     "composer": "php ./bin/composer.phar"
                                 }})
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         if self.config.ui_library == "tailwind":
             replace_file_with_template(Path(__file__).parent.parent / "templates" / "php-tw-vite.config.js",

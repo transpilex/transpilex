@@ -14,6 +14,7 @@ from transpilex.utils.assets import copy_assets, replace_asset_paths
 from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import file_exists, copy_items, move_files
 from transpilex.utils.gulpfile import has_plugins_config
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import sync_package_json
 from transpilex.utils.restructure import restructure_and_copy_files
@@ -73,7 +74,7 @@ class BaseSpringConverter:
 
         sync_package_json(self.config, ignore=["scripts"])
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
     def _convert(self):
         """Processes templates: partials get fragment wrappers; pages get layout decoration."""

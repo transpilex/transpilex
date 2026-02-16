@@ -8,8 +8,9 @@ from cookiecutter.main import cookiecutter
 from transpilex.config.base import CODEIGNITER_ASSETS_PRESERVE, CODEIGNITER_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, clean_relative_asset_paths
-from transpilex.utils.file import copy_items, find_files_with_extension, copy_and_change_extension, file_exists
+from transpilex.utils.file import find_files_with_extension, copy_and_change_extension, file_exists
 from transpilex.utils.gulpfile import has_plugins_config
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import sync_package_json
 from transpilex.utils.replace_html_links import replace_html_links
@@ -183,7 +184,7 @@ class CodeIgniterGulpConverter(BaseCodeIgniterConverter):
 
         has_plugins_config(self.config)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"),self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         sync_package_json(self.config, ignore=["scripts"])
 

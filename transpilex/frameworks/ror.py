@@ -10,7 +10,8 @@ from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths, copy_public_only_assets
 from transpilex.utils.casing import apply_casing
 from transpilex.utils.file import move_files, rename_item, copy_items, remove_item, file_exists
-from transpilex.utils.gulpfile import add_gulpfile, has_plugins_config
+from transpilex.utils.gulpfile import has_plugins_config
+from transpilex.utils.lock_files import copy_lock_files
 from transpilex.utils.logs import Log
 from transpilex.utils.package_json import update_package_json, sync_package_json
 from transpilex.utils.replace_variables import replace_variables
@@ -676,7 +677,7 @@ class RorGulpConverter(BaseRorConverter):
 
         has_plugins_config(self.config)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         sync_package_json(self.config, ignore=["scripts"])
 
@@ -702,7 +703,7 @@ class RorViteConverter(BaseRorConverter):
 
         update_package_json(self.config)
 
-        copy_items(Path(self.config.src_path / "package-lock.json"), self.config.project_root_path)
+        copy_lock_files(self.config.src_path, self.config.project_root_path)
 
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
