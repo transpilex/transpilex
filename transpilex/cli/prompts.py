@@ -20,7 +20,7 @@ from transpilex.config.base import (
     SYMFONY_EXTENSION, SPRING_ASSETS_PATH, SPRING_PARTIALS_PATH, SPRING_EXTENSION, BLAZOR_ASSETS_PATH,
     BLAZOR_PARTIALS_PATH, BLAZOR_VARIABLE_REPLACEMENT, BLAZOR_EXTENSION, FASTAPI_ASSETS_PATH, FASTAPI_PARTIALS_PATH,
     FASTAPI_VARIABLE_REPLACEMENT, FASTAPI_EXTENSION, YII_ASSETS_PATH, YII_PARTIALS_PATH, YII_VARIABLE_REPLACEMENT,
-    YII_EXTENSION
+    YII_EXTENSION, AIOHTTP_ASSETS_PATH, AIOHTTP_PARTIALS_PATH, AIOHTTP_VARIABLE_REPLACEMENT, AIOHTTP_EXTENSION
 )
 from transpilex.config.project import GulpConfig
 from transpilex.utils.file import folder_exists
@@ -273,6 +273,12 @@ def ask_project_config():
         project_partials_path = YII_PARTIALS_PATH
         variable_replacement = YII_VARIABLE_REPLACEMENT
         file_extension = YII_EXTENSION
+
+    elif framework == "aiohttp":
+        project_assets_path = AIOHTTP_ASSETS_PATH
+        project_partials_path = AIOHTTP_PARTIALS_PATH
+        variable_replacement = AIOHTTP_VARIABLE_REPLACEMENT
+        file_extension = AIOHTTP_EXTENSION
 
     else:
         project_assets_path = None
@@ -532,6 +538,12 @@ def process_cli_config(cli_args):
         project_partials_path = YII_PARTIALS_PATH
         variable_replacement = YII_VARIABLE_REPLACEMENT
         file_extension = YII_EXTENSION
+
+    elif framework == "aiohttp":
+        project_assets_path = AIOHTTP_ASSETS_PATH
+        project_partials_path = AIOHTTP_PARTIALS_PATH
+        variable_replacement = AIOHTTP_VARIABLE_REPLACEMENT
+        file_extension = AIOHTTP_EXTENSION
 
     else:
         project_assets_path = None

@@ -13,7 +13,8 @@ SUPPORTED_FRAMEWORKS = [
     "Spring",
     "Blazor",
     "FastAPI",
-    "Yii"
+    "Yii",
+    "AIOHTTP"
 ]
 
 SUPPORTED_PIPELINES = ["Gulp", "Vite"]
@@ -197,7 +198,6 @@ LARAVEL_EXTENSION = ".blade.php"
 LARAVEL_ASSETS_PATH = "resources"
 LARAVEL_PARTIALS_PATH = "resources/views/partials"
 LARAVEL_RESOURCES_PRESERVE = ["views"]
-
 LARAVEL_VARIABLE_REPLACEMENT = r"{{ $\1 }}"
 
 # Django
@@ -205,11 +205,7 @@ DJANGO_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-django.gi
 DJANGO_EXTENSION = ".html"
 DJANGO_ASSETS_PATH = "static"
 DJANGO_PARTIALS_PATH = "templates/partials"
-
 DJANGO_VARIABLE_REPLACEMENT = r"{{ \1 }}"
-
-# Dot Net
-SLN_FILE_CREATION_COMMAND = "dotnet new sln -n"
 
 # Core
 CORE_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-core.git"
@@ -235,9 +231,6 @@ ROR_ASSETS_PATH = "public"
 ROR_VITE_ASSETS_PATH = "frontend"
 ROR_PARTIALS_PATH = "app/views/layouts/partials"
 ROR_VARIABLE_REPLACEMENT = r"<%= \1 %>"
-ROR_TAILWIND_PLUGINS = (
-    '\ngem "tailwindcss-ruby", "~> 4.1"\n gem "tailwindcss-rails", "~> 4.4"\n'
-)
 
 # CakePHP
 CAKEPHP_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-cakephp.git"
@@ -248,7 +241,7 @@ CAKEPHP_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CAKEPHP_ASSETS_PRESERVE = ["index.php", ".htaccess"]
 
 # Codeigniter
-CODEIGNITER_COOKIECUTTER_REPO  = "https://github.com/transpilex/cookiecutter-codeigniter.git"
+CODEIGNITER_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-codeigniter.git"
 CODEIGNITER_EXTENSION = ".php"
 CODEIGNITER_ASSETS_PATH = "public"
 CODEIGNITER_PARTIALS_PATH = "app/Views"
@@ -256,7 +249,7 @@ CODEIGNITER_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 CODEIGNITER_ASSETS_PRESERVE = ["index.php", ".htaccess", "manifest.json", "robots.txt"]
 
 # Node
-NODE_COOKIECUTTER_REPO  = "https://github.com/transpilex/cookiecutter-node.git"
+NODE_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-node.git"
 NODE_EXTENSION = ".ejs"
 NODE_ASSETS_PATH = "public"
 NODE_PARTIALS_PATH = "views"
@@ -297,14 +290,20 @@ FASTAPI_ASSETS_PATH = "apps/static"
 FASTAPI_PARTIALS_PATH = "apps/templates/partials"
 FASTAPI_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 
-# Fast API
-YII_COOKIECUTTER_REPO  = "https://github.com/transpilex/cookiecutter-yii.git"
+# YII
+YII_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-yii.git"
 YII_EXTENSION = ".php"
 YII_ASSETS_PATH = "public"
 YII_PARTIALS_PATH = "src/Web/Pages/templates/partials"
 YII_VARIABLE_REPLACEMENT = r"<?= $\1 ?>"
 YII_ASSETS_PRESERVE = ["index.php", "robots.txt"]
 
+# AIOHTTP
+AIOHTTP_COOKIECUTTER_REPO = "https://github.com/transpilex/cookiecutter-aiohttp.git"
+AIOHTTP_EXTENSION = ".html"
+AIOHTTP_ASSETS_PATH = "app/static"
+AIOHTTP_PARTIALS_PATH = "app/templates/partials"
+AIOHTTP_VARIABLE_REPLACEMENT = r"{{ \1 }}"
 
 RESERVE_KEYWORDS = {
     "abstract", "continue", "for", "new", "switch",

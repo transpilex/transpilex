@@ -23,6 +23,7 @@ ror
 spring
 fastapi
 yii
+aiohttp
 
 php-vite
 laravel-vite
@@ -39,36 +40,7 @@ ror-vite
 spring-vite
 fastapi-vite
 yii-vite
-
-php-tw
-laravel-tw
-cakephp-tw
-codeigniter-tw
-symfony-tw
-node-tw
-django-tw
-flask-tw
-core-tw
-mvc-tw
-blazor-tw
-ror-tw
-spring-tw
-yii-tw
-
-php-tw-vite
-laravel-tw-vite
-cakephp-tw-vite
-codeigniter-tw-vite
-symfony-tw-vite
-node-tw-vite
-django-tw-vite
-flask-tw-vite
-core-tw-vite
-mvc-tw-vite
-blazor-tw-vite
-ror-tw-vite
-spring-tw-vite
-yii-tw-vite
+aiohttp-vite
 
 package.json
 

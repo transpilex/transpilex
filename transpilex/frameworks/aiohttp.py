@@ -5,7 +5,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from cookiecutter.main import cookiecutter
 
-from transpilex.config.base import FASTAPI_COOKIECUTTER_REPO
+from transpilex.config.base import AIOHTTP_COOKIECUTTER_REPO
 from transpilex.config.project import ProjectConfig
 from transpilex.utils.assets import copy_assets, replace_asset_paths
 from transpilex.utils.file import file_exists, find_files_with_extension, copy_and_change_extension, move_files, \
@@ -17,10 +17,10 @@ from transpilex.utils.replace_html_links import replace_html_links
 from transpilex.utils.replace_variables import replace_variables
 
 
-class BaseFastApiConverter:
+class BaseAIOHTTPConverter:
     def __init__(self, config):
         self.config = config
-        self.project_pages_path = Path(self.config.project_root_path / "apps" / "templates" / "pages")
+        self.project_pages_path = Path(self.config.project_root_path / "app" / "templates")
 
     def init_create_project(self):
         try:
@@ -30,7 +30,7 @@ class BaseFastApiConverter:
                 has_plugins_file = True
 
             cookiecutter(
-                FASTAPI_COOKIECUTTER_REPO,
+                AIOHTTP_COOKIECUTTER_REPO,
                 output_dir=str(self.config.project_root_path.parent),
                 no_input=True,
                 extra_context={'name': self.config.project_name,
@@ -40,9 +40,9 @@ class BaseFastApiConverter:
                                },
             )
 
-            Log.success("Fast API project created successfully")
+            Log.success("AIOHTTP project created successfully")
         except:
-            Log.error("Fast API project creation failed")
+            Log.error("AIOHTTP project creation failed")
             return
 
         files = find_files_with_extension(self.config.pages_path)
@@ -62,6 +62,10 @@ class BaseFastApiConverter:
         """
         count = 0
         for file in self.project_pages_path.rglob("*.html"):
+
+            if not file.is_file() or "layouts" in file.parts:
+                continue
+
             with open(file, "r", encoding="utf-8") as f:
                 content = f.read()
 
@@ -114,7 +118,7 @@ class BaseFastApiConverter:
 
             soup = BeautifulSoup(content, "html.parser")
 
-            is_partial = "partials" in file.parts or "layouts" in file.parts
+            is_partial = "partials" in file.parts
 
             if is_partial:
                 out = str(soup)
@@ -313,7 +317,7 @@ class BaseFastApiConverter:
             path = match.group("path")
             trailing = match.group("trailing")
             normalized = re.sub(r'^.*?assets/', '', path).lstrip('/')
-            return f'{attr}="{{{{ url_for(\'static\', path=\'{normalized}\') }}}}{trailing}"'
+            return f'{attr}="{{{{ url(\'static\', filename=\'{normalized}\') }}}}{trailing}"'
 
         html = attr_pattern.sub(attr_replacer, html)
 
@@ -324,7 +328,7 @@ class BaseFastApiConverter:
 
         def css_replacer(match: re.Match) -> str:
             path = match.group("inner_path").strip().lstrip('/')
-            return f"url({{{{ url_for('static', path='{path}') }}}})"
+            return f"url({{{{ url('static', filename='{path}') }}}})"
 
         html = css_pattern.sub(css_replacer, html)
 
@@ -358,7 +362,7 @@ class BaseFastApiConverter:
         return False
 
 
-class FastApiGulpConverter(BaseFastApiConverter):
+class AIOHTTPGulpConverter(BaseAIOHTTPConverter):
     def __init__(self, config: ProjectConfig):
         super().__init__(config)
 
@@ -379,9 +383,9 @@ class FastApiGulpConverter(BaseFastApiConverter):
         Log.project_end(self.config.project_name, str(self.config.project_root_path))
 
 
-class FastApiConverter:
+class AIOHTTPConverter:
     def __init__(self, config: ProjectConfig):
         self.config = config
 
         if self.config.frontend_pipeline == "gulp":
-            FastApiGulpConverter(self.config).create_project()
+            AIOHTTPGulpConverter(self.config).create_project()

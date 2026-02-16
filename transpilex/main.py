@@ -4,6 +4,7 @@ from pathlib import Path
 
 from transpilex.cli.prompts import ask_project_config, process_cli_config
 from transpilex.config.project import ProjectConfig
+from transpilex.frameworks.aiohttp import AIOHTTPConverter
 from transpilex.frameworks.blazor import BlazorConverter
 from transpilex.frameworks.cakephp import CakePHPConverter
 from transpilex.frameworks.codeigniter import CodeIgniterConverter
@@ -137,6 +138,8 @@ def main():
             FastApiConverter(config)
         elif project_config["framework"] == "yii":
             YiiConverter(config)
+        elif project_config["framework"] == "aiohttp":
+            AIOHTTPConverter(config)
         return 0
     except Exception as e:
         Log.error(f"Transpilation failed: {e}")
